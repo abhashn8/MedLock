@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,32 @@ type Repo = {
   description: string | null;
   private: boolean;
   html_url: string;
+  owner: { login: string };
 };
+
+type ScanSummary = {
+  id: string;
+  repo_owner: string;
+  repo_name: string;
+  created_at: string;
+  finding_count: number;
+};
+
+function timeAgo(iso: string): string {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds} seconds ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
+  const years = Math.floor(months / 12);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
+}
 
 type State =
   | { kind: "loading" }
@@ -26,6 +52,24 @@ export default function DashboardPage() {
 
   const [state, setState] = useState<State>({ kind: "loading" });
   const [query, setQuery] = useState("");
+  const [recentScans, setRecentScans] = useState<ScanSummary[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const res = await fetch("/api/scans");
+      if (!res.ok) return;
+      const data = (await res.json()) as ScanSummary[];
+      if (cancelled) return;
+      setRecentScans(data);
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +132,15 @@ export default function DashboardPage() {
     );
   }, [state, query]);
 
+  const scanByRepo = useMemo(() => {
+    const map = new Map<string, ScanSummary>();
+    for (const scan of recentScans) {
+      const key = `${scan.repo_owner}/${scan.repo_name}`;
+      if (!map.has(key)) map.set(key, scan);
+    }
+    return map;
+  }, [recentScans]);
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-border border-b">
@@ -140,6 +193,39 @@ export default function DashboardPage() {
               />
             </div>
 
+            {recentScans.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="font-medium text-foreground text-sm">
+                  Recent Scans
+                </h2>
+                <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+                  {recentScans.slice(0, 5).map((scan) => (
+                    <li
+                      key={scan.id}
+                      className="flex items-center justify-between gap-4 px-4 py-3"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="truncate font-medium text-foreground text-sm">
+                          {scan.repo_owner}/{scan.repo_name}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          {scan.finding_count} finding
+                          {scan.finding_count === 1 ? "" : "s"} ·{" "}
+                          {timeAgo(scan.created_at)}
+                        </p>
+                      </div>
+                      <Link
+                        href={`/dashboard/report/${scan.id}`}
+                        className="shrink-0 font-medium text-foreground text-xs hover:underline"
+                      >
+                        View Report
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {filteredRepos.length === 0 ? (
               <p className="rounded-md border border-border bg-card px-4 py-8 text-center text-muted-foreground text-sm">
                 No repositories match &ldquo;{query}&rdquo;.
@@ -148,7 +234,10 @@ export default function DashboardPage() {
               <ul className="grid gap-3 sm:grid-cols-2">
                 {filteredRepos.map((repo) => (
                   <li key={repo.id}>
-                    <RepoCard repo={repo} />
+                    <RepoCard
+                      repo={repo}
+                      lastScan={scanByRepo.get(repo.full_name)}
+                    />
                   </li>
                 ))}
               </ul>
@@ -186,7 +275,44 @@ function ConnectGitHubState({ onConnect }: { onConnect: () => void }) {
   );
 }
 
-function RepoCard({ repo }: { repo: Repo }) {
+function RepoCard({
+  repo,
+  lastScan,
+}: {
+  repo: Repo;
+  lastScan?: ScanSummary;
+}) {
+  const router = useRouter();
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleScan() {
+    setScanning(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner: repo.owner.login,
+          repo: repo.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(
+          typeof data?.error === "string" ? data.error : "Scan failed.",
+        );
+        setScanning(false);
+        return;
+      }
+      router.push(`/dashboard/report/${data.scanId}`);
+    } catch {
+      setError("Scan failed.");
+      setScanning(false);
+    }
+  }
+
   return (
     <div className="flex h-full flex-col justify-between gap-4 rounded-lg border bg-card p-4 transition hover:border-foreground/20">
       <div className="space-y-2">
@@ -207,10 +333,45 @@ function RepoCard({ repo }: { repo: Repo }) {
         <p className="line-clamp-2 text-muted-foreground text-xs">
           {repo.description ?? "No description"}
         </p>
+        {lastScan && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span
+                className={`size-1.5 rounded-full ${
+                  lastScan.finding_count === 0
+                    ? "bg-emerald-500"
+                    : "bg-yellow-500"
+                }`}
+              />
+              {lastScan.finding_count} finding
+              {lastScan.finding_count === 1 ? "" : "s"}
+            </span>
+            <span className="text-muted-foreground">
+              · {timeAgo(lastScan.created_at)}
+            </span>
+            <Link
+              href={`/dashboard/report/${lastScan.id}`}
+              className="text-foreground hover:underline"
+            >
+              View last report
+            </Link>
+          </div>
+        )}
       </div>
-      <Button variant="outline" size="sm" className="w-full">
-        Scan this repo
-      </Button>
+      <div className="space-y-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={handleScan}
+          disabled={scanning}
+        >
+          {scanning ? "Scanning..." : "Scan this repo"}
+        </Button>
+        {error && (
+          <p className="text-destructive text-xs">{error}</p>
+        )}
+      </div>
     </div>
   );
 }
