@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { MenuToggleIcon } from "@/components/ui/menu-toggle-icon"
@@ -112,8 +113,12 @@ export function Header() {
           </NavigationMenu>
         </div>
         <div className="hidden items-center gap-2 md:flex">
-          <Button variant="outline">Sign In</Button>
-          <Button>Get Started</Button>
+          <Button variant="outline" asChild>
+            <Link href="/login">Sign In</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/signup">Get Started</Link>
+          </Button>
         </div>
         <Button
           size="icon"
@@ -137,10 +142,12 @@ export function Header() {
           </div>
         </NavigationMenu>
         <div className="flex flex-col gap-2">
-          <Button variant="outline" className="w-full bg-transparent">
-            Sign In
+          <Button variant="outline" className="w-full bg-transparent" asChild>
+            <Link href="/login">Sign In</Link>
           </Button>
-          <Button className="w-full">Get Started</Button>
+          <Button className="w-full" asChild>
+            <Link href="/signup">Get Started</Link>
+          </Button>
         </div>
       </MobileMenu>
     </header>
