@@ -49,9 +49,9 @@ function severityChipClasses(severity: Severity): string {
   if (severity === "Critical")
     return "border-hs-danger-border bg-hs-danger-bg text-hs-danger";
   if (severity === "High")
-    return "border-[#FDE68A] bg-hs-warning-bg text-hs-warning";
+    return "border-hs-warning-border bg-hs-warning-bg text-hs-warning";
   if (severity === "Medium")
-    return "border-[#BFDBFE] bg-hs-info-bg text-hs-primary";
+    return "border-hs-info-border bg-hs-info-bg text-hs-primary";
   if (severity === "Low")
     return "border-hs-success-border bg-hs-low-bg text-hs-low-text";
   return "border-hs-border bg-hs-fill text-hs-muted";

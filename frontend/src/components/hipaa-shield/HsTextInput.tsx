@@ -30,7 +30,7 @@ export function HsTextInput({
       {label ? (
         <label
           htmlFor={inputId}
-          className="text-hs-secondary font-medium text-[#374151]"
+          className="text-hs-secondary font-medium text-hs-text"
         >
           {label}
         </label>

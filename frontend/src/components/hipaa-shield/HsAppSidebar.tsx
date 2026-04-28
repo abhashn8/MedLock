@@ -110,7 +110,7 @@ export function HsAppSidebar({
                       "group flex h-10 items-center gap-2 rounded-hs py-2.5 pl-4 pr-3 text-hs-secondary font-medium",
                       active
                         ? "bg-hs-info-bg text-hs-primary"
-                        : "text-[#374151] hover:bg-hs-fill-hover",
+                        : "text-hs-muted hover:bg-hs-fill-hover",
                       collapsed && "relative justify-center px-0",
                     )}
                   >

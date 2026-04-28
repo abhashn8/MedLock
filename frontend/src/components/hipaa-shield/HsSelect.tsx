@@ -27,7 +27,7 @@ export function HsSelect({
       {label ? (
         <label
           htmlFor={selectId}
-          className="text-hs-secondary font-medium text-[#374151]"
+          className="text-hs-secondary font-medium text-hs-text"
         >
           {label}
         </label>

@@ -23,7 +23,7 @@ export function HsDangerButton({
       disabled={isDisabled}
       className={cn(
         "inline-flex h-10 min-w-[40px] items-center justify-center rounded-hs px-4 text-hs-body font-medium text-white",
-        "bg-hs-danger hs-transition-button-bg hover:bg-[#B91C1C]",
+        "bg-hs-danger hs-transition-button-bg hover:bg-red-300",
         "active:scale-[0.98] focus-visible:outline-none focus-visible:shadow-hs-focus-error",
         "disabled:cursor-not-allowed disabled:bg-hs-border disabled:text-hs-placeholder",
         className,

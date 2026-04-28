@@ -24,7 +24,7 @@ export function HsTextarea({
   return (
     <div className="flex w-full flex-col gap-1.5">
       {label ? (
-        <label htmlFor={tid} className="text-hs-secondary font-medium text-[#374151]">
+        <label htmlFor={tid} className="text-hs-secondary font-medium text-hs-text">
           {label}
         </label>
       ) : null}
