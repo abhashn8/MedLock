@@ -4,10 +4,12 @@ import { env } from "../env.js";
 import { HttpError } from "../http-error.js";
 import type { AuthContext } from "../supabase.js";
 import { getGitHubToken } from "./github.js";
+import { syncPhiInventoryFromScanner } from "./phi-inventory.js";
 
 let anthropicClient: Anthropic | null = null;
 const MAX_REPO_FILES = 80;
-const MAX_FILE_BYTES = 300_000;
+const MAX_FILE_BYTES = 12_000;
+const MAX_TOTAL_SOURCE_BYTES = 140_000;
 const ALLOWED_EXTENSIONS = [
   ".js",
   ".jsx",
@@ -145,7 +147,7 @@ function parseRepoUrl(repoUrl: string): ParsedRepo {
 }
 
 async function getOrganizationId(context: AuthContext): Promise<string> {
-  const { data, error } = await context.supabase
+  let { data, error } = await context.supabase
     .from("organization_memberships")
     .select("organization_id")
     .eq("user_id", context.user.id)
@@ -156,7 +158,30 @@ async function getOrganizationId(context: AuthContext): Promise<string> {
     throw new HttpError(500, "organization_lookup_failed", error.message);
   }
   if (!data?.organization_id) {
-    throw new HttpError(404, "organization_not_found", "No organization membership found.");
+    const orgName = `MedLock - ${context.user.email ?? context.user.id}`;
+    const { error: bootstrapError } = await context.supabase.rpc(
+      "bootstrap_organization_for_current_user",
+      { org_name: orgName },
+    );
+    if (bootstrapError) {
+      throw new HttpError(500, "organization_bootstrap_failed", bootstrapError.message);
+    }
+
+    const retry = await context.supabase
+      .from("organization_memberships")
+      .select("organization_id")
+      .eq("user_id", context.user.id)
+      .limit(1)
+      .maybeSingle();
+
+    data = retry.data;
+    error = retry.error;
+    if (error) {
+      throw new HttpError(500, "organization_lookup_failed", error.message);
+    }
+    if (!data?.organization_id) {
+      throw new HttpError(404, "organization_not_found", "No organization membership found.");
+    }
   }
   return data.organization_id as string;
 }
@@ -206,7 +231,9 @@ async function loadGitHubSource(context: AuthContext, repoUrl: string): Promise<
     .slice(0, MAX_REPO_FILES);
 
   const sourceParts: string[] = [];
+  let totalBytes = 0;
   for (const path of paths) {
+    if (totalBytes >= MAX_TOTAL_SOURCE_BYTES) break;
     const res = await fetch(
       `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/contents/${path}`,
       { headers },
@@ -215,7 +242,12 @@ async function loadGitHubSource(context: AuthContext, repoUrl: string): Promise<
     const data = (await res.json()) as { content?: string; encoding?: string };
     if (!data.content || data.encoding !== "base64") continue;
     const decoded = Buffer.from(data.content, "base64").toString("utf8");
-    sourceParts.push(`FILE: ${path}\n${decoded.slice(0, MAX_FILE_BYTES)}\n`);
+    const snippet = decoded.slice(0, MAX_FILE_BYTES);
+    const chunk = `FILE: ${path}\n${snippet}\n`;
+    totalBytes += Buffer.byteLength(chunk, "utf8");
+    if (totalBytes <= MAX_TOTAL_SOURCE_BYTES) {
+      sourceParts.push(chunk);
+    }
   }
 
   if (sourceParts.length === 0) {
@@ -225,7 +257,7 @@ async function loadGitHubSource(context: AuthContext, repoUrl: string): Promise<
   return {
     sourceName: `${parsed.owner}/${parsed.repo}`,
     fileName: `${parsed.owner}-${parsed.repo}.txt`,
-    payload: sourceParts.join("\n-----------------\n"),
+    payload: sourceParts.join("\n-----------------\n").slice(0, MAX_TOTAL_SOURCE_BYTES),
   };
 }
 
@@ -240,7 +272,7 @@ function loadUploadSource(input: Extract<SourceInput, { sourceType: "upload" }>)
   return {
     sourceName: input.fileName.trim(),
     fileName: input.fileName.trim(),
-    payload: input.fileContent.slice(0, MAX_FILE_BYTES),
+    payload: input.fileContent.slice(0, MAX_TOTAL_SOURCE_BYTES),
   };
 }
 
@@ -379,6 +411,12 @@ export async function runPhiScan(
     });
     await insertFindings(context, organizationId, scanId, normalized);
 
+    try {
+      await syncPhiInventoryFromScanner(context, scanId);
+    } catch (syncError) {
+      console.error("[phi_inventory_sync_failed]", syncError);
+    }
+
     await updateScanProgress(context, scanId, {
       status: "complete",
       progress_percent: 100,
@@ -406,6 +444,7 @@ export async function runPhiScan(
 export async function getPhiScanOverview(
   context: AuthContext,
   filters: {
+    scan_id?: string;
     severity?: string;
     phi_type?: string;
     status?: string;
@@ -425,18 +464,23 @@ export async function getPhiScanOverview(
 
   const scanQuery = context.supabase
     .from("phi_scans")
-    .select("id, created_at, source_name, source_type, status, triggered_by, file_path, progress_percent, progress_message, error_message")
+    .select(
+      "id, created_at, source_name, source_type, status, triggered_by, file_path, progress_percent, progress_message, error_message, phi_findings(count)",
+    )
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(25);
 
   const findingsQuery = context.supabase
     .from("phi_findings")
-    .select("id, scan_id, source, phi_type, severity, line_number, evidence, recommendation, status, false_positive_reason, owner, created_at")
+    .select(
+      "id, scan_id, source, phi_type, severity, line_number, evidence, title, description, recommendation, status, false_positive_reason, owner, created_at",
+    )
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(500);
 
+  if (filters.scan_id) findingsQuery.eq("scan_id", filters.scan_id);
   if (filters.severity) findingsQuery.eq("severity", filters.severity);
   if (filters.phi_type) findingsQuery.ilike("phi_type", `%${filters.phi_type}%`);
   if (filters.status) findingsQuery.eq("status", filters.status);
@@ -449,14 +493,39 @@ export async function getPhiScanOverview(
   if (findingError) throw new HttpError(500, "phi_findings_query_failed", findingError.message);
 
   const resultFindings = findings ?? [];
-  const sourceSet = new Set<string>((scans ?? []).map((scan) => String(scan.source_name)));
+  const normalizedScans: Record<string, unknown>[] = (scans ?? []).map((row) => {
+    const embedded = (row as Record<string, unknown>).phi_findings;
+    let finding_count = 0;
+    if (Array.isArray(embedded) && embedded[0]) {
+      const rawCount = (embedded[0] as { count?: unknown }).count;
+      if (typeof rawCount === "number" && Number.isFinite(rawCount)) {
+        finding_count = rawCount;
+      } else if (typeof rawCount === "string" && rawCount.trim() !== "") {
+        const parsed = Number.parseInt(rawCount, 10);
+        finding_count = Number.isFinite(parsed) ? parsed : 0;
+      }
+    }
+    const { phi_findings: _omit, ...rest } = row as Record<string, unknown>;
+    return { ...rest, finding_count };
+  });
+  const allScanSourceNames = new Set<string>(
+    normalizedScans.map((scan) => String(scan.source_name ?? "")).filter(Boolean),
+  );
+  const scopedScanId = filters.scan_id?.trim();
+  const sourcesScanned =
+    scopedScanId && normalizedScans.some((s) => String(s.id) === scopedScanId)
+      ? 1
+      : scopedScanId
+        ? 0
+        : allScanSourceNames.size;
+
   return {
-    scans: scans ?? [],
+    scans: normalizedScans,
     findings: resultFindings,
     stats: {
       totalFindings: resultFindings.length,
       criticalCount: resultFindings.filter((row) => row.severity === "Critical").length,
-      sourcesScanned: sourceSet.size,
+      sourcesScanned,
       falsePositives: resultFindings.filter((row) => row.status === "false_positive").length,
     },
   };

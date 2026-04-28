@@ -33,7 +33,7 @@ function assertModule(module: string): string {
 }
 
 async function getOrganizationId(context: AuthContext): Promise<string> {
-  const { data, error } = await context.supabase
+  let { data, error } = await context.supabase
     .from("organization_memberships")
     .select("organization_id")
     .eq("user_id", context.user.id)
@@ -44,11 +44,33 @@ async function getOrganizationId(context: AuthContext): Promise<string> {
     throw new HttpError(500, "organization_lookup_failed", error.message);
   }
   if (!data?.organization_id) {
-    throw new HttpError(
-      404,
-      "organization_not_found",
-      "No organization membership found for user.",
+    const orgName = `MedLock - ${context.user.email ?? context.user.id}`;
+    const { error: bootstrapError } = await context.supabase.rpc(
+      "bootstrap_organization_for_current_user",
+      { org_name: orgName },
     );
+    if (bootstrapError) {
+      throw new HttpError(500, "organization_bootstrap_failed", bootstrapError.message);
+    }
+
+    const retry = await context.supabase
+      .from("organization_memberships")
+      .select("organization_id")
+      .eq("user_id", context.user.id)
+      .limit(1)
+      .maybeSingle();
+    data = retry.data;
+    error = retry.error;
+    if (error) {
+      throw new HttpError(500, "organization_lookup_failed", error.message);
+    }
+    if (!data?.organization_id) {
+      throw new HttpError(
+        404,
+        "organization_not_found",
+        "No organization membership found for user.",
+      );
+    }
   }
   return data.organization_id as string;
 }

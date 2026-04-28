@@ -45,3 +45,10 @@ export async function listRepos(context: AuthContext): Promise<GitHubRepo[]> {
 
   return data as GitHubRepo[];
 }
+
+export async function disconnectGitHub({ supabase, user }: AuthContext): Promise<void> {
+  const { error } = await supabase.from("github_connections").delete().eq("user_id", user.id);
+  if (error) {
+    throw new HttpError(500, "github_disconnect_failed", error.message);
+  }
+}

@@ -44,6 +44,8 @@ export type PhiScan = {
   progress_percent: number;
   progress_message: string | null;
   error_message: string | null;
+  /** Populated by API: count of findings for this scan (stable when findings list is filtered). */
+  finding_count?: number;
 };
 
 export type PhiFinding = {
@@ -54,6 +56,8 @@ export type PhiFinding = {
   severity: "Critical" | "High" | "Medium" | "Low" | "Informational";
   line_number: number | null;
   evidence: string;
+  title?: string | null;
+  description?: string | null;
   recommendation: string;
   status: "open" | "false_positive" | "resolved";
   false_positive_reason: string | null;
@@ -70,4 +74,176 @@ export type PhiScanOverview = {
     sourcesScanned: number;
     falsePositives: number;
   };
+};
+
+export type PhiSystemClassification =
+  | "clinical"
+  | "direct_identifier"
+  | "financial"
+  | "contact"
+  | "derived";
+
+export type PhiSystemType =
+  | "database"
+  | "object_storage"
+  | "api"
+  | "saas"
+  | "email"
+  | "file_share"
+  | "backup"
+  | "other";
+
+export type PhiSystemStatus = "active" | "needs_review" | "at_risk" | "decommissioned";
+
+export type PhiSystemSource = "manual" | "scanner";
+
+export type PhiInventoryPhiType =
+  | "ssn"
+  | "mrn"
+  | "dob"
+  | "name"
+  | "email"
+  | "phone"
+  | "fax"
+  | "address"
+  | "zip"
+  | "dates"
+  | "age_over_89"
+  | "diagnosis"
+  | "insurance_id"
+  | "account_number"
+  | "certificate_number"
+  | "device_identifier"
+  | "ip_address"
+  | "biometric"
+  | "photo"
+  | "url"
+  | "bank_account"
+  | "other";
+
+export type PhiSystem = {
+  id: string;
+  organization_id?: string;
+  name: string;
+  description: string | null;
+  system_type: PhiSystemType;
+  host_or_url: string | null;
+  department: string;
+  classification: PhiSystemClassification;
+  phi_types: string[];
+  business_owner_id: string | null;
+  technical_owner_id: string | null;
+  business_owner_name?: string | null;
+  technical_owner_name?: string | null;
+  encryption_at_rest: boolean;
+  encryption_at_rest_method: string | null;
+  encryption_in_transit: boolean;
+  encryption_in_transit_protocol: string | null;
+  access_control_method: "rbac" | "iam" | "password" | "none";
+  baa_required: boolean;
+  baa_id: string | null;
+  retention_years: number | null;
+  retention_legal_basis: "hipaa_minimum" | "state_law" | "contract" | "custom" | null;
+  retention_notes: string | null;
+  review_cadence: "quarterly" | "semi_annual" | "annual";
+  last_reviewed_at: string | null;
+  next_review_due_at: string | null;
+  source: PhiSystemSource;
+  phi_scan_id: string | null;
+  status: PhiSystemStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  days_until_review?: number | null;
+  risk_score?: number;
+  compliance_gaps?: Array<{ key: string; citation: string }>;
+};
+
+export type PhiSystemReviewRow = {
+  id: string;
+  organization_id: string;
+  system_id: string;
+  reviewed_by: string;
+  reviewed_at: string;
+  changes_made: string | null;
+  next_review_due_at: string;
+  created_at: string;
+  reviewer_name?: string | null;
+};
+
+export type PhiInventoryListResponse = {
+  items: PhiSystem[];
+  total: number;
+  stats: {
+    systemsCataloged: number;
+    missingOwners: number;
+    retentionGaps: number;
+    reviewOverdue: number;
+  };
+  departments: string[];
+};
+
+export type PhiInventoryCoverageRow = {
+  phi_type: string;
+  system_count: number;
+  systems: { id: string; name: string }[];
+};
+
+export type PhiInventorySyncResult = {
+  created: number;
+  already_exists: number;
+};
+
+export type PhiSystemAuditLogRow = {
+  id: string;
+  organization_id: string;
+  system_id: string;
+  changed_by: string | null;
+  changed_by_name?: string | null;
+  changed_at: string;
+  action: "created" | "updated" | "reviewed" | "decommissioned";
+  field_name: string | null;
+  old_value: string | null;
+  new_value: string | null;
+};
+
+export type PhiInventoryRiskSummary = {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  top_risks: PhiSystem[];
+};
+
+export type PhiReviewSubmitPayload = {
+  reviewer_role: "privacy_officer" | "compliance_manager" | "system_owner" | "security_officer";
+  changes_made: string;
+  checklist_confirmed: boolean;
+  cosigner_id?: string | null;
+  cosigner_role?: string | null;
+};
+
+export type PhiBulkUpdatePayload = {
+  ids: string[];
+  updates: Partial<PhiSystem>;
+};
+
+export type PhiBulkUpdateResult = {
+  updated: number;
+  errors: Array<{ id: string; reason: string }>;
+};
+
+export type PhiImportResult = {
+  imported: number;
+  warnings: Array<{ row: number; message: string }>;
+  blocked: Array<{ row: number; reason: string }>;
+};
+
+export type PhiDecommissionPayload = {
+  method: string;
+  date?: string;
+  authorized_by?: string;
+  successor_system?: string;
+  legal_hold_ref?: string;
+  notes?: string;
 };
