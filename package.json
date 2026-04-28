@@ -2,7 +2,8 @@
   "name": "medlock",
   "private": true,
   "workspaces": [
-    "apps/*",
+    "frontend",
+    "backend",
     "packages/*"
   ],
   "scripts": {
