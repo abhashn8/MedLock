@@ -28,6 +28,17 @@ import {
   updatePhiSystem,
 } from "./services/phi-inventory.js";
 import {
+  createDeidCheck,
+  exportDeidAssessmentCsv,
+  getDeidCheck,
+  getDeidHistory,
+  getDeidJob,
+  recheckDeid,
+  runDeidentifier,
+  submitExpertReview,
+} from "./services/deid.js";
+import { buildDeidAssessmentReport } from "./services/deid-pdf.js";
+import {
   buildAuditPackagePdf,
   buildDecommissionCertificatePdf,
   buildReviewCertificatePdf,
@@ -150,6 +161,133 @@ app.delete(
     }
     await deleteModuleRecord(context, id);
     response.status(204).send();
+  }),
+);
+
+app.post(
+  "/api/deid/check",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(
+      await createDeidCheck(context, request.body as {
+        dataset_label?: string;
+        standard?: "safe_harbor" | "expert_determination";
+        data?: string;
+        column_hints?: unknown;
+      }),
+    );
+  }),
+);
+
+app.get(
+  "/api/deid/check/:id",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    response.json(await getDeidCheck(context, id));
+  }),
+);
+
+app.post(
+  "/api/deid/check/:id/recheck",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    response.json(await recheckDeid(context, id, request.body as { data?: string; dataset_label?: string }));
+  }),
+);
+
+app.post(
+  "/api/deid/check/:id/expert-review",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    response.json(
+      await submitExpertReview(context, id, request.body as {
+        expert_reviewer_id?: string;
+        expert_credentials?: string;
+        expert_notes?: string;
+        approved?: boolean;
+      }),
+    );
+  }),
+);
+
+app.get(
+  "/api/deid/check/:id/report",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    const out = await buildDeidAssessmentReport(context, id);
+    response.setHeader("Content-Type", "application/pdf");
+    response.setHeader("Content-Disposition", `attachment; filename="${out.filename}"`);
+    response.send(Buffer.from(out.bytes));
+  }),
+);
+
+app.get(
+  "/api/deid/check/:id/export.csv",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    const out = await exportDeidAssessmentCsv(context, id);
+    response.setHeader("Content-Type", "text/csv; charset=utf-8");
+    response.setHeader("Content-Disposition", `attachment; filename="${out.filename}"`);
+    response.send(out.csv);
+  }),
+);
+
+app.post(
+  "/api/deid/run",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(
+      await runDeidentifier(context, request.body as {
+        dataset_label?: string;
+        assessment_id?: string;
+        data?: string;
+        column_mapping?: Array<{
+          column_name: string;
+          phi_type?: string | null;
+          action: string;
+          custom_value?: string | null;
+        }>;
+      }),
+    );
+  }),
+);
+
+app.get(
+  "/api/deid/run/:id",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    response.json(await getDeidJob(context, id));
+  }),
+);
+
+app.get(
+  "/api/deid/history",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const q = request.query;
+    response.json(
+      await getDeidHistory(context, {
+        tool:
+          typeof q.tool === "string" && (q.tool === "checker" || q.tool === "deidentifier" || q.tool === "all")
+            ? q.tool
+            : "all",
+        status: typeof q.status === "string" ? q.status : undefined,
+        page: typeof q.page === "string" ? Number.parseInt(q.page, 10) : undefined,
+        limit: typeof q.limit === "string" ? Number.parseInt(q.limit, 10) : undefined,
+      }),
+    );
   }),
 );
 

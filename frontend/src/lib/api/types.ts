@@ -247,3 +247,57 @@ export type PhiDecommissionPayload = {
   legal_hold_ref?: string;
   notes?: string;
 };
+
+export type DeidStandard = "safe_harbor" | "expert_determination";
+
+export type DeidFinding = {
+  identifier_type: string;
+  hipaa_category: "direct" | "quasi" | "unique";
+  column_name: string;
+  sample_pattern: string;
+  row_count_affected: number;
+  severity: "blocker" | "warning";
+  remediation: string;
+  safe_harbor_item: number;
+};
+
+export type DeidAssessment = {
+  id: string;
+  organization_id: string;
+  created_by: string | null;
+  dataset_label: string;
+  standard: DeidStandard;
+  tool: "checker" | "deidentifier";
+  status: "pending" | "running" | "pass" | "fail" | "needs_expert" | "error";
+  row_count: number | null;
+  column_count: number | null;
+  columns_detected: Array<{ name: string; inferred_type: string; phi_type: string | null }>;
+  findings: DeidFinding[];
+  identifier_count: number;
+  passed_identifiers: string[];
+  failed_identifiers: string[];
+  reidentification_risk: number | null;
+  kanonymity_value: number | null;
+  quasi_identifiers: string[];
+  remediation_of: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
+export type DeidJob = {
+  id: string;
+  organization_id: string;
+  assessment_id: string | null;
+  dataset_label: string;
+  status: "pending" | "running" | "complete" | "error";
+  row_count: number | null;
+  column_count: number | null;
+  column_mapping: Array<{ column_name: string; phi_type?: string | null; action: string; custom_value?: string | null }>;
+  transformations_applied: Array<{ column: string; action: string; rows_transformed: number; rows_suppressed: number; notes: string | null }>;
+  output_row_count: number | null;
+  output_column_count: number | null;
+  suppressed_rows: number;
+  output_storage_path: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
