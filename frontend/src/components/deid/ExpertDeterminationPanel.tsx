@@ -10,7 +10,7 @@ export function ExpertDeterminationPanel({
   onSubmitReview,
 }: {
   assessment: Record<string, unknown>;
-  onSubmitReview: (payload: { expert_reviewer_id: string; expert_credentials: string; expert_notes: string; approved: boolean }) => Promise<void>;
+  onSubmitReview?: (payload: { expert_reviewer_id: string; expert_credentials: string; expert_notes: string; approved: boolean }) => Promise<void>;
 }) {
   const risk = Number(assessment.reidentification_risk ?? 0);
   const k = Number(assessment.kanonymity_value ?? 0);
@@ -23,7 +23,7 @@ export function ExpertDeterminationPanel({
       <p className="text-hs-caption text-hs-secondary">Re-identification risk: <span className="font-medium">{risk.toFixed(3)}</span></p>
       <p className="text-hs-caption text-hs-secondary">k-anonymity: <span className="font-medium">k = {k}</span></p>
       <p className="text-hs-caption text-hs-secondary">Quasi-identifiers: {quasi || "None"}</p>
-      {needs ? <ExpertReviewForm onSubmitReview={onSubmitReview} /> : null}
+      {needs && onSubmitReview ? <ExpertReviewForm onSubmitReview={onSubmitReview} /> : null}
     </div>
   );
 }

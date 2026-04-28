@@ -9,11 +9,13 @@ import { createClient } from "@/lib/supabase/client";
 import { HsEmptyState } from "@/components/hipaa-shield/HsEmptyState";
 import { HsModal } from "@/components/hipaa-shield/HsModal";
 import { HsPrimaryButton } from "@/components/hipaa-shield/HsPrimaryButton";
+import { HsReadOnlyBanner } from "@/components/hipaa-shield/HsReadOnlyBanner";
 import { HsSecondaryButton } from "@/components/hipaa-shield/HsSecondaryButton";
 import { HsSelect } from "@/components/hipaa-shield/HsSelect";
 import { HsSkeleton } from "@/components/hipaa-shield/HsSkeleton";
 import { HsTextInput } from "@/components/hipaa-shield/HsTextInput";
 import { HsTextarea } from "@/components/hipaa-shield/HsTextarea";
+import { useDashboardRbac } from "@/lib/rbac/context";
 
 const OWNER_OPTIONS = [
   "Security Officer",
@@ -84,6 +86,8 @@ function ScrollCell({ children, title }: { children: ReactNode; title?: string }
 
 export default function PhiLeakageScannerPage() {
   const supabase = createClient();
+  const rbac = useDashboardRbac();
+  const canWrite = rbac.canWritePage("phi_leakage_scanner");
   const [overview, setOverview] = useState<PhiScanOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +130,7 @@ export default function PhiLeakageScannerPage() {
   }
 
   async function handleConnectGitHub() {
+    if (!canWrite) return;
     await supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
@@ -136,6 +141,7 @@ export default function PhiLeakageScannerPage() {
   }
 
   async function handleDisconnectGitHub() {
+    if (!canWrite) return;
     const res = await apiFetch("/api/repos/connection", { method: "DELETE" });
     if (!res.ok) {
       setError("Failed to disconnect GitHub.");
@@ -255,6 +261,7 @@ export default function PhiLeakageScannerPage() {
   }, [repoQuery, repos]);
 
   async function runScan() {
+    if (!canWrite) return;
     setError(null);
     setRunning(true);
     try {
@@ -295,6 +302,7 @@ export default function PhiLeakageScannerPage() {
   }
 
   async function patchFinding(id: string, payload: Record<string, unknown>) {
+    if (!canWrite) return;
     const res = await apiFetch(`/api/phi-scan/findings/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
@@ -309,6 +317,7 @@ export default function PhiLeakageScannerPage() {
   return (
     <div className="min-h-full bg-hs-page px-4 py-8 md:px-8">
       <div className="mx-auto min-w-0 max-w-[1240px] space-y-8">
+        {rbac.permissionFor("phi_leakage_scanner") === "read_only" ? <HsReadOnlyBanner /> : null}
         <section>
           <h1 className="text-hs-title font-semibold text-hs-text">PHI Leakage Scanner</h1>
           <p className="mt-2 text-hs-body text-hs-muted">
@@ -338,20 +347,22 @@ export default function PhiLeakageScannerPage() {
                 </p>
               )}
             </div>
-            <div className="flex gap-2">
-              {githubConnected ? (
-                <HsPrimaryButton type="button" onClick={handleConnectGitHub}>
-                  Switch GitHub
-                </HsPrimaryButton>
-              ) : (
-                <HsPrimaryButton type="button" onClick={handleConnectGitHub}>
-                  Login with GitHub
-                </HsPrimaryButton>
-              )}
-              <HsSecondaryButton type="button" onClick={handleDisconnectGitHub}>
-                Disconnect
-              </HsSecondaryButton>
-            </div>
+            {canWrite ? (
+              <div className="flex gap-2">
+                {githubConnected ? (
+                  <HsPrimaryButton type="button" onClick={handleConnectGitHub}>
+                    Switch GitHub
+                  </HsPrimaryButton>
+                ) : (
+                  <HsPrimaryButton type="button" onClick={handleConnectGitHub}>
+                    Login with GitHub
+                  </HsPrimaryButton>
+                )}
+                <HsSecondaryButton type="button" onClick={handleDisconnectGitHub}>
+                  Disconnect
+                </HsSecondaryButton>
+              </div>
+            ) : null}
           </div>
 
           {githubConnected ? (
@@ -389,17 +400,21 @@ export default function PhiLeakageScannerPage() {
                 ) : null}
               </div>
               <div className="flex flex-row flex-wrap gap-2 lg:max-w-[220px] lg:flex-col">
-                <HsSecondaryButton type="button" onClick={() => setRepoPickerOpen(true)}>
-                  Select repositories
-                </HsSecondaryButton>
-                <HsPrimaryButton
-                  type="button"
-                  onClick={runScan}
-                  disabled={running || selectedRepos.length === 0}
-                  loading={running}
-                >
-                  Run Scan
-                </HsPrimaryButton>
+                {canWrite ? (
+                  <>
+                    <HsSecondaryButton type="button" onClick={() => setRepoPickerOpen(true)}>
+                      Select repositories
+                    </HsSecondaryButton>
+                    <HsPrimaryButton
+                      type="button"
+                      onClick={runScan}
+                      disabled={running || selectedRepos.length === 0}
+                      loading={running}
+                    >
+                      Run Scan
+                    </HsPrimaryButton>
+                  </>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -556,22 +571,26 @@ export default function PhiLeakageScannerPage() {
                         </div>
                       </td>
                       <td className="w-[13%] min-w-0 px-3 py-2.5 align-middle">
-                        <div className="flex min-w-0 flex-col gap-1.5">
-                          <HsSecondaryButton
-                            type="button"
-                            className="h-9 w-full shrink-0 px-2 text-hs-caption"
-                            onClick={() => setTakeActionFinding(finding)}
-                          >
-                            Take action
-                          </HsSecondaryButton>
-                          <HsSecondaryButton
-                            type="button"
-                            className="h-9 w-full shrink-0 px-2 text-hs-caption"
-                            onClick={() => setRemediationFinding(finding)}
-                          >
-                            Remediation
-                          </HsSecondaryButton>
-                        </div>
+                        {canWrite ? (
+                          <div className="flex min-w-0 flex-col gap-1.5">
+                            <HsSecondaryButton
+                              type="button"
+                              className="h-9 w-full shrink-0 px-2 text-hs-caption"
+                              onClick={() => setTakeActionFinding(finding)}
+                            >
+                              Take action
+                            </HsSecondaryButton>
+                            <HsSecondaryButton
+                              type="button"
+                              className="h-9 w-full shrink-0 px-2 text-hs-caption"
+                              onClick={() => setRemediationFinding(finding)}
+                            >
+                              Remediation
+                            </HsSecondaryButton>
+                          </div>
+                        ) : (
+                          <span className="text-hs-caption text-hs-muted">View only</span>
+                        )}
                       </td>
                     </tr>
                   ))}

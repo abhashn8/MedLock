@@ -8,8 +8,11 @@ import { HsEmptyState } from "@/components/hipaa-shield/HsEmptyState"
 import { HsIcon } from "@/components/hipaa-shield/HsIcon"
 import { HsMetricCard } from "@/components/hipaa-shield/HsMetricCard"
 import { HsPrimaryButton } from "@/components/hipaa-shield/HsPrimaryButton"
+import { HsReadOnlyBanner } from "@/components/hipaa-shield/HsReadOnlyBanner"
 import { HsSecondaryButton } from "@/components/hipaa-shield/HsSecondaryButton"
 import { HsStatusPill } from "@/components/hipaa-shield/HsStatusPill"
+import { pageForRoute } from "@/lib/rbac/permissions"
+import { useDashboardRbac } from "@/lib/rbac/context"
 
 /**
  * Feature route for every dashboard module.
@@ -17,6 +20,7 @@ import { HsStatusPill } from "@/components/hipaa-shield/HsStatusPill"
 export default function DashboardFeaturePage() {
   const params = useParams<{ slug: string[] }>()
   const router = useRouter()
+  const rbac = useDashboardRbac()
 
   const href = useMemo(() => {
     const parts = params.slug ?? []
@@ -24,6 +28,8 @@ export default function DashboardFeaturePage() {
   }, [params.slug])
 
   const feature = getFeatureSpecByHref(href)
+  const page = pageForRoute(href)
+  const permission = page ? rbac.permissionFor(page) : "none"
 
   if (!feature) {
     return (
@@ -41,6 +47,7 @@ export default function DashboardFeaturePage() {
   return (
     <div className="min-h-full bg-hs-page px-4 py-8 md:px-8">
       <div className="mx-auto max-w-[1200px] space-y-8">
+        {permission === "read_only" ? <HsReadOnlyBanner /> : null}
         <header className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl space-y-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -72,7 +79,9 @@ export default function DashboardFeaturePage() {
             <HsSecondaryButton type="button" onClick={() => router.push("/dashboard")}>
               Back to Dashboard
             </HsSecondaryButton>
-            <HsPrimaryButton type="button">{feature.primaryAction}</HsPrimaryButton>
+            {permission === "full" ? (
+              <HsPrimaryButton type="button">{feature.primaryAction}</HsPrimaryButton>
+            ) : null}
           </div>
         </header>
 
@@ -110,7 +119,9 @@ export default function DashboardFeaturePage() {
               ))}
             </ol>
             <div className="mt-6 border-t border-hs-border pt-5">
-              <HsSecondaryButton type="button">{feature.secondaryAction}</HsSecondaryButton>
+              {permission === "full" ? (
+                <HsSecondaryButton type="button">{feature.secondaryAction}</HsSecondaryButton>
+              ) : null}
             </div>
           </div>
 

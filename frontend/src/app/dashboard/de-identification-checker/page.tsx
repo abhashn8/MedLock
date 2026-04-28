@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api/client";
 import type { DeidAssessment, DeidFinding, DeidJob, DeidStandard } from "@/lib/api/types";
 import { HsEmptyState } from "@/components/hipaa-shield/HsEmptyState";
 import { HsPrimaryButton } from "@/components/hipaa-shield/HsPrimaryButton";
+import { HsReadOnlyBanner } from "@/components/hipaa-shield/HsReadOnlyBanner";
 import { HsSecondaryButton } from "@/components/hipaa-shield/HsSecondaryButton";
 import { DataInputZone } from "@/components/deid/DataInputZone";
 import { StandardSelector } from "@/components/deid/StandardSelector";
@@ -13,10 +14,13 @@ import { IdentifierChecklist } from "@/components/deid/IdentifierChecklist";
 import { ExpertDeterminationPanel } from "@/components/deid/ExpertDeterminationPanel";
 import { ColumnMappingTable, type MappingRow } from "@/components/deid/ColumnMappingTable";
 import { RemediationChain } from "@/components/deid/RemediationChain";
+import { useDashboardRbac } from "@/lib/rbac/context";
 
 type Tab = "checker" | "deidentifier";
 
 export default function DeIdentificationCheckerPage() {
+  const rbac = useDashboardRbac();
+  const canWrite = rbac.canWritePage("de_identification_checker");
   const [tab, setTab] = useState<Tab>("checker");
   const [standard, setStandard] = useState<DeidStandard>("safe_harbor");
   const [datasetLabel, setDatasetLabel] = useState("");
@@ -47,6 +51,7 @@ export default function DeIdentificationCheckerPage() {
   }
 
   async function runCheck() {
+    if (!canWrite) return;
     setCheckerLoading(true);
     setError(null);
     try {
@@ -69,7 +74,7 @@ export default function DeIdentificationCheckerPage() {
   }
 
   async function runRecheck() {
-    if (!assessment?.id) return;
+    if (!assessment?.id || !canWrite) return;
     setCheckerLoading(true);
     setError(null);
     try {
@@ -97,7 +102,7 @@ export default function DeIdentificationCheckerPage() {
     expert_notes: string;
     approved: boolean;
   }) {
-    if (!assessment?.id) return;
+    if (!assessment?.id || !canWrite) return;
     const res = await apiFetch(`/api/deid/check/${assessment.id}/expert-review`, {
       method: "POST",
       body: JSON.stringify(payload),
@@ -131,6 +136,7 @@ export default function DeIdentificationCheckerPage() {
   }
 
   async function runDeid() {
+    if (!canWrite) return;
     setRunningJob(true);
     setError(null);
     try {
@@ -206,6 +212,7 @@ export default function DeIdentificationCheckerPage() {
   return (
     <div className="min-h-full bg-hs-page px-4 py-8 md:px-8">
       <div className="mx-auto max-w-[1240px] space-y-6">
+        {rbac.permissionFor("de_identification_checker") === "read_only" ? <HsReadOnlyBanner /> : null}
         <section>
           <h1 className="text-hs-title font-semibold text-hs-text">De-identification Checker</h1>
           <p className="mt-2 text-hs-body text-hs-muted">
@@ -241,16 +248,18 @@ export default function DeIdentificationCheckerPage() {
                 setMappings(cols.map((c) => ({ column_name: c, action: "keep" })));
               }}
             />
-            <div className="flex gap-2">
-              <HsPrimaryButton type="button" loading={checkerLoading} onClick={() => void runCheck()}>
-                Run check
-              </HsPrimaryButton>
-              {assessment ? (
-                <HsSecondaryButton type="button" loading={checkerLoading} onClick={() => void runRecheck()}>
-                  Re-check after remediation
-                </HsSecondaryButton>
-              ) : null}
-            </div>
+            {canWrite ? (
+              <div className="flex gap-2">
+                <HsPrimaryButton type="button" loading={checkerLoading} onClick={() => void runCheck()}>
+                  Run check
+                </HsPrimaryButton>
+                {assessment ? (
+                  <HsSecondaryButton type="button" loading={checkerLoading} onClick={() => void runRecheck()}>
+                    Re-check after remediation
+                  </HsSecondaryButton>
+                ) : null}
+              </div>
+            ) : null}
 
             {assessment ? (
               <section className="space-y-4 rounded-hs-card border border-hs-border bg-hs-card p-5">
@@ -272,10 +281,14 @@ export default function DeIdentificationCheckerPage() {
                       <FindingCard
                         key={`${f.column_name}-${i}`}
                         finding={f as unknown as Record<string, unknown>}
-                        onFix={(finding) => {
-                          setTab("deidentifier");
-                          prefillFromFindings([finding as unknown as DeidFinding]);
-                        }}
+                        onFix={
+                          canWrite
+                            ? (finding) => {
+                                setTab("deidentifier");
+                                prefillFromFindings([finding as unknown as DeidFinding]);
+                              }
+                            : undefined
+                        }
                       />
                     ))}
                   </div>
@@ -290,7 +303,10 @@ export default function DeIdentificationCheckerPage() {
                     warningIdentifiers={warningIdentifiers}
                   />
                 ) : (
-                  <ExpertDeterminationPanel assessment={assessment as unknown as Record<string, unknown>} onSubmitReview={submitExpertReview} />
+                  <ExpertDeterminationPanel
+                    assessment={assessment as unknown as Record<string, unknown>}
+                    onSubmitReview={canWrite ? submitExpertReview : undefined}
+                  />
                 )}
 
                 <div className="flex flex-wrap gap-2">
@@ -305,15 +321,17 @@ export default function DeIdentificationCheckerPage() {
                   >
                     Export assessment report (PDF)
                   </HsSecondaryButton>
-                  <HsSecondaryButton
-                    type="button"
-                    onClick={() => {
-                      setTab("deidentifier");
-                      prefillFromFindings(assessment.findings);
-                    }}
-                  >
-                    Fix with De-identifier
-                  </HsSecondaryButton>
+                  {canWrite ? (
+                    <HsSecondaryButton
+                      type="button"
+                      onClick={() => {
+                        setTab("deidentifier");
+                        prefillFromFindings(assessment.findings);
+                      }}
+                    >
+                      Fix with De-identifier
+                    </HsSecondaryButton>
+                  ) : null}
                 </div>
 
                 <RemediationChain
@@ -401,12 +419,12 @@ export default function DeIdentificationCheckerPage() {
                     Back
                   </HsSecondaryButton>
                 ) : null}
-                {deidStep < 3 ? (
+                {canWrite && deidStep < 3 ? (
                   <HsPrimaryButton type="button" onClick={() => setDeidStep((s) => Math.min(3, s + 1))}>
                     Continue
                   </HsPrimaryButton>
                 ) : null}
-                {deidStep === 3 ? (
+                {canWrite && deidStep === 3 ? (
                   <HsPrimaryButton type="button" loading={runningJob} onClick={() => void runDeid()}>
                     Run de-identification
                   </HsPrimaryButton>

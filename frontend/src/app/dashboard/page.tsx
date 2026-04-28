@@ -13,8 +13,10 @@ import type { HsFindingRow } from "@/components/hipaa-shield/HsFindingsTable";
 import { HsFindingsTable } from "@/components/hipaa-shield/HsFindingsTable";
 import { HsMetricCard } from "@/components/hipaa-shield/HsMetricCard";
 import { HsPrimaryButton } from "@/components/hipaa-shield/HsPrimaryButton";
+import { HsReadOnlyBanner } from "@/components/hipaa-shield/HsReadOnlyBanner";
 import { HsSkeleton } from "@/components/hipaa-shield/HsSkeleton";
 import { HsTextInput } from "@/components/hipaa-shield/HsTextInput";
+import { useDashboardRbac } from "@/lib/rbac/context";
 
 function timeAgo(iso: string): string {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -49,6 +51,8 @@ type State =
 
 export default function DashboardPage() {
   const supabase = createClient();
+  const rbac = useDashboardRbac();
+  const canAccessPhiScanner = rbac.canAccessPage("phi_leakage_scanner");
 
   const [state, setState] = useState<State>({ kind: "loading" });
   const [query, setQuery] = useState("");
@@ -59,6 +63,7 @@ export default function DashboardPage() {
     let cancelled = false;
 
     async function load() {
+      if (!canAccessPhiScanner) return;
       const res = await apiFetch("/api/scans");
       if (!res.ok) return;
       const data = (await res.json()) as ScanSummary[];
@@ -70,12 +75,16 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canAccessPhiScanner]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      if (!canAccessPhiScanner) {
+        setState({ kind: "ready", repos: [] });
+        return;
+      }
       const res = await apiFetch("/api/repos");
       const data = await res.json();
       if (cancelled) return;
@@ -103,7 +112,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canAccessPhiScanner]);
 
   async function handleConnectGitHub() {
     await supabase.auth.signInWithOAuth({
@@ -167,6 +176,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-full bg-hs-page">
+      {rbac.permissionFor("dashboard") === "read_only" ? <HsReadOnlyBanner /> : null}
       {showAlert ? (
         <HsAlertBanner
           variant="CRITICAL"

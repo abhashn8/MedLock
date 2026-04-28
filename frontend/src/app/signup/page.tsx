@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { acceptRoleInvites } from "@/lib/api/roles";
 import { createClient } from "@/lib/supabase/client";
 import { HsPrimaryButton } from "@/components/hipaa-shield/HsPrimaryButton";
 import { HsTextInput } from "@/components/hipaa-shield/HsTextInput";
 
 export default function SignupPage() {
+  const router = useRouter();
   const supabase = createClient();
 
   const [email, setEmail] = useState("");
@@ -20,7 +23,7 @@ export default function SignupPage() {
     setError(null);
     setLoading(true);
 
-    const { error: signError } = await supabase.auth.signUp({
+    const { data, error: signError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -32,6 +35,13 @@ export default function SignupPage() {
 
     if (signError) {
       setError(signError.message);
+      return;
+    }
+
+    if (data.session) {
+      await acceptRoleInvites().catch(() => undefined);
+      router.push("/dashboard");
+      router.refresh();
       return;
     }
 

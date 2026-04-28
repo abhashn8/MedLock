@@ -16,11 +16,13 @@ import { OwnerCell, RetentionCell } from "./cells";
 export function SystemDetailPanel({
   system,
   onEdit,
+  canWrite = true,
   onDecommissioned,
   onReviewSubmitted,
 }: {
   system: PhiSystem;
   onEdit: () => void;
+  canWrite?: boolean;
   onDecommissioned: () => void;
   onReviewSubmitted: () => void;
 }) {
@@ -162,16 +164,18 @@ export function SystemDetailPanel({
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <HsSecondaryButton type="button" onClick={onEdit}>
-            Edit
-          </HsSecondaryButton>
-          {system.status !== "decommissioned" ? (
-            <HsSecondaryButton type="button" className="border-hs-danger-border text-hs-danger" onClick={() => setConfirmDecom(true)}>
-              Decommission
+        {canWrite ? (
+          <div className="flex flex-wrap gap-2">
+            <HsSecondaryButton type="button" onClick={onEdit}>
+              Edit
             </HsSecondaryButton>
-          ) : null}
-        </div>
+            {system.status !== "decommissioned" ? (
+              <HsSecondaryButton type="button" className="border-hs-danger-border text-hs-danger" onClick={() => setConfirmDecom(true)}>
+                Decommission
+              </HsSecondaryButton>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-5 grid gap-6 md:grid-cols-2">
@@ -200,7 +204,7 @@ export function SystemDetailPanel({
           <div>
             <p className="text-hs-caption font-medium uppercase tracking-wide text-hs-muted">Owners</p>
             <div className="mt-2">
-              <OwnerCell system={system} onAssign={onEdit} />
+              <OwnerCell system={system} onAssign={canWrite ? onEdit : undefined} />
             </div>
           </div>
         </div>
@@ -262,7 +266,7 @@ export function SystemDetailPanel({
               Compliance gaps
             </button>
           </div>
-          {system.status !== "decommissioned" ? (
+          {canWrite && system.status !== "decommissioned" ? (
             <HsPrimaryButton type="button" onClick={() => setReviewOpen(true)}>
               Start review
             </HsPrimaryButton>

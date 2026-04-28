@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { getDashboardNavContext } from "@/app/dashboard/nav-resolver"
 import { HsAppSidebar, persistSidebarCollapsed, readInitialSidebarCollapsed } from "@/components/hipaa-shield/HsAppSidebar"
 import { HsAppTopBar } from "@/components/hipaa-shield/HsAppTopBar"
+import { useDashboardRbac } from "@/lib/rbac/context"
 import { cn } from "@/lib/utils"
 
 export type HsDashboardShellProps = {
@@ -19,12 +20,12 @@ export function HsDashboardShell({ children }: HsDashboardShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { title, activeHref } = getDashboardNavContext(pathname)
+  const rbac = useDashboardRbac()
 
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [userName, setUserName] = useState("User")
-  const [userRole, setUserRole] = useState("Compliance Manager")
 
   useEffect(() => {
     setCollapsed(readInitialSidebarCollapsed())
@@ -45,10 +46,6 @@ export function HsDashboardShell({ children }: HsDashboardShellProps) {
         user.email?.split("@")[0] ??
         "User"
       setUserName(name)
-      const role =
-        (user.app_metadata as { role?: string })?.role ??
-        "Compliance Manager"
-      setUserRole(role)
     }
     load()
     return () => {
@@ -98,7 +95,8 @@ export function HsDashboardShell({ children }: HsDashboardShellProps) {
           collapsed={collapsed}
           onToggleCollapsed={toggleCollapsed}
           userName={userName}
-          userRole={userRole}
+          userRole={rbac.roleLabel}
+          role={rbac.role}
         />
       </div>
 
@@ -116,7 +114,8 @@ export function HsDashboardShell({ children }: HsDashboardShellProps) {
               collapsed={false}
               onToggleCollapsed={() => {}}
               userName={userName}
-              userRole={userRole}
+              userRole={rbac.roleLabel}
+              role={rbac.role}
             />
           </div>
         </div>
@@ -130,7 +129,7 @@ export function HsDashboardShell({ children }: HsDashboardShellProps) {
           criticalAlerts={4}
           onOpenMobileNav={() => setMobileOpen(true)}
           userName={userName}
-          userRole={userRole}
+          userRole={rbac.roleLabel}
           userInitials={initials}
           onProfile={() => router.push("/dashboard/organization-profile")}
           onSettings={() => router.push("/dashboard/notification-preferences")}

@@ -7,6 +7,7 @@ import { HsGlobalSearch } from "@/components/hipaa-shield/HsGlobalSearch"
 import { HsPrimaryButton } from "@/components/hipaa-shield/HsPrimaryButton"
 import { HsNotificationsBell } from "@/components/hipaa-shield/HsNotificationsBell"
 import { HsUserMenu } from "@/components/hipaa-shield/HsUserMenu"
+import { useDashboardRbac } from "@/lib/rbac/context"
 import { cn } from "@/lib/utils"
 
 export type HsAppTopBarProps = {
@@ -44,6 +45,8 @@ export function HsAppTopBar({
   className,
 }: HsAppTopBarProps) {
   const router = useRouter()
+  const rbac = useDashboardRbac()
+  const canRunScan = rbac.canWritePage("phi_leakage_scanner")
 
   return (
     <header
@@ -66,20 +69,24 @@ export function HsAppTopBar({
       <div className="ml-auto flex items-center gap-3">
         <HsGlobalSearch value={searchQuery} onChange={onSearchQueryChange} />
         <div className="hidden h-6 w-px bg-hs-border md:block" aria-hidden />
-        <HsPrimaryButton
-          type="button"
-          className="hidden whitespace-nowrap sm:inline-flex"
-          onClick={() => router.push(runScanHref)}
-        >
-          Run Scan
-        </HsPrimaryButton>
-        <HsPrimaryButton
-          type="button"
-          className="px-3 sm:hidden"
-          onClick={() => router.push(runScanHref)}
-        >
-          Scan
-        </HsPrimaryButton>
+        {canRunScan ? (
+          <>
+            <HsPrimaryButton
+              type="button"
+              className="hidden whitespace-nowrap sm:inline-flex"
+              onClick={() => router.push(runScanHref)}
+            >
+              Run Scan
+            </HsPrimaryButton>
+            <HsPrimaryButton
+              type="button"
+              className="px-3 sm:hidden"
+              onClick={() => router.push(runScanHref)}
+            >
+              Scan
+            </HsPrimaryButton>
+          </>
+        ) : null}
         <HsNotificationsBell criticalCount={criticalAlerts} />
         <HsUserMenu
           name={userName}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { acceptRoleInvites } from "@/lib/api/roles";
 import { createClient } from "@/lib/supabase/client";
 import { HsPrimaryButton } from "@/components/hipaa-shield/HsPrimaryButton";
 import { HsSecondaryButton } from "@/components/hipaa-shield/HsSecondaryButton";
@@ -34,6 +35,7 @@ export default function LoginPage() {
       return;
     }
 
+    await acceptRoleInvites().catch(() => undefined);
     router.push("/dashboard");
     router.refresh();
   }

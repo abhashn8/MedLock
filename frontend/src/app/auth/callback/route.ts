@@ -25,6 +25,16 @@ export async function GET(request: NextRequest) {
         { onConflict: "user_id" },
       );
     }
+
+    if (session?.access_token) {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+      await fetch(`${apiUrl}/api/roles/accept-invite`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      }).catch(() => undefined);
+    }
   }
 
   return NextResponse.redirect(new URL("/dashboard", request.url));

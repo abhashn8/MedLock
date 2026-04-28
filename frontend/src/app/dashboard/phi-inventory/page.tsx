@@ -12,6 +12,7 @@ import type {
 } from "@/lib/api/types";
 import { HsEmptyState } from "@/components/hipaa-shield/HsEmptyState";
 import { HsPrimaryButton } from "@/components/hipaa-shield/HsPrimaryButton";
+import { HsReadOnlyBanner } from "@/components/hipaa-shield/HsReadOnlyBanner";
 import { HsSecondaryButton } from "@/components/hipaa-shield/HsSecondaryButton";
 import { HsSelect } from "@/components/hipaa-shield/HsSelect";
 import { HsSkeleton } from "@/components/hipaa-shield/HsSkeleton";
@@ -26,6 +27,7 @@ import {
   SystemStatusBadge,
   SystemTypeIcon,
 } from "@/components/phi-inventory/tags-and-badges";
+import { useDashboardRbac } from "@/lib/rbac/context";
 
 function buildListQuery(params: Record<string, string | number | undefined>): string {
   const u = new URLSearchParams();
@@ -47,6 +49,8 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 }
 
 export default function PhiInventoryPage() {
+  const rbac = useDashboardRbac();
+  const canWrite = rbac.canWritePage("phi_inventory");
   const [list, setList] = useState<PhiInventoryListResponse | null>(null);
   const [coverage, setCoverage] = useState<PhiInventoryCoverageRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,11 +134,13 @@ export default function PhiInventoryPage() {
   }, [list]);
 
   function openCreate() {
+    if (!canWrite) return;
     setSlideMode("create");
     setSlideOpen(true);
   }
 
   function openEdit(s: PhiSystem) {
+    if (!canWrite) return;
     setSelected(s);
     setSlideMode("edit");
     setSlideOpen(true);
@@ -142,7 +148,7 @@ export default function PhiInventoryPage() {
 
   async function applyBulk() {
     const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
+    if (ids.length === 0 || !canWrite) return;
     const updates: Record<string, unknown> = {};
     updates[bulkField] = bulkValue || null;
     const res = await apiFetch("/api/phi-inventory/bulk", {
@@ -179,6 +185,7 @@ export default function PhiInventoryPage() {
   return (
     <div className="min-h-full bg-hs-page px-4 py-8 md:px-8">
       <div className="mx-auto min-w-0 max-w-[1240px] space-y-8">
+        {rbac.permissionFor("phi_inventory") === "read_only" ? <HsReadOnlyBanner /> : null}
         <section className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-hs-title font-semibold text-hs-text">PHI inventory</h1>
@@ -191,9 +198,11 @@ export default function PhiInventoryPage() {
             <HsSecondaryButton type="button" onClick={() => void exportAuditPackage()}>
               Export audit package
             </HsSecondaryButton>
-            <HsPrimaryButton type="button" onClick={openCreate}>
-              Add system
-            </HsPrimaryButton>
+            {canWrite ? (
+              <HsPrimaryButton type="button" onClick={openCreate}>
+                Add system
+              </HsPrimaryButton>
+            ) : null}
           </div>
         </section>
 
@@ -303,6 +312,7 @@ export default function PhiInventoryPage() {
           <SystemDetailPanel
             system={selected}
             onEdit={() => openEdit(selected)}
+            canWrite={canWrite}
             onDecommissioned={() => {
               setSelected(null);
               void loadData();
@@ -314,7 +324,7 @@ export default function PhiInventoryPage() {
         <div className="space-y-8">
           <section className="min-w-0 w-full rounded-hs-card border border-hs-border bg-hs-card p-6">
             <h2 className="text-hs-section font-semibold text-hs-text">Systems</h2>
-            {selectedIds.size > 0 ? (
+            {selectedIds.size > 0 && canWrite ? (
               <div className="mt-4 rounded-hs border border-hs-primary/40 bg-hs-info-bg p-3">
                 <p className="text-hs-caption text-hs-text">{selectedIds.size} selected</p>
                 <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -370,19 +380,21 @@ export default function PhiInventoryPage() {
                         onClick={() => setSelected(row)}
                       >
                         <td className="px-3 py-2.5">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(row.id)}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              setSelectedIds((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(row.id)) next.delete(row.id);
-                                else next.add(row.id);
-                                return next;
-                              });
-                            }}
-                          />
+                          {canWrite ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(row.id)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setSelectedIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(row.id)) next.delete(row.id);
+                                  else next.add(row.id);
+                                  return next;
+                                });
+                              }}
+                            />
+                          ) : null}
                         </td>
                         <td className="px-3 py-2.5">
                           <div className="flex items-start gap-2">
@@ -404,7 +416,7 @@ export default function PhiInventoryPage() {
                           <RiskScoreBadge score={Number(row.risk_score ?? 0)} />
                         </td>
                         <td className="max-w-[200px] px-3 py-2.5">
-                          <OwnerCell system={row} onAssign={() => openEdit(row)} />
+                          <OwnerCell system={row} onAssign={canWrite ? () => openEdit(row) : undefined} />
                         </td>
                         <td className="px-3 py-2.5">
                           <RetentionCell system={row} />
@@ -434,15 +446,17 @@ export default function PhiInventoryPage() {
                   Page {page} of {totalPages} · {list.total} systems
                 </span>
                 <div className="flex gap-2">
-                  <HsSecondaryButton
-                    type="button"
-                    onClick={() => {
-                      const ids = list.items.map((row) => row.id);
-                      setSelectedIds(new Set(ids));
-                    }}
-                  >
-                    Select page
-                  </HsSecondaryButton>
+                  {canWrite ? (
+                    <HsSecondaryButton
+                      type="button"
+                      onClick={() => {
+                        const ids = list.items.map((row) => row.id);
+                        setSelectedIds(new Set(ids));
+                      }}
+                    >
+                      Select page
+                    </HsSecondaryButton>
+                  ) : null}
                   <HsSecondaryButton type="button" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                     Previous
                   </HsSecondaryButton>
@@ -479,7 +493,7 @@ export default function PhiInventoryPage() {
       </div>
 
       <SystemSlideOver
-        open={slideOpen}
+        open={slideOpen && canWrite}
         onClose={() => setSlideOpen(false)}
         mode={slideMode}
         system={slideMode === "edit" ? selected : null}

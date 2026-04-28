@@ -1,8 +1,14 @@
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
+import { pageForRoute, type NavPage } from "@medlock/rbac";
 import { Buffer } from "node:buffer";
 import { env } from "./env.js";
 import { HttpError } from "./http-error.js";
+import {
+  createAccessReviewCampaign,
+  getAccessReviewOverview,
+  updateAccessReviewItem,
+} from "./services/access-review.js";
 import { disconnectGitHub, listRepos } from "./services/github.js";
 import {
   createModuleRecord,
@@ -49,6 +55,17 @@ import {
   patchPhiFinding,
   runPhiScan,
 } from "./services/phi-scan.js";
+import {
+  acceptInvites,
+  getMyRole,
+  inviteMember,
+  listChangelog,
+  listInvitations,
+  listMembers,
+  removeMember,
+  updateMember,
+} from "./services/roles.js";
+import { requirePermission } from "./services/rbac.js";
 import { createScan, getScan, listScans } from "./services/scans.js";
 import { requireAuth } from "./supabase.js";
 
@@ -56,7 +73,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: env.frontendOrigin,
+    origin: [env.frontendOrigin, "http://localhost:3000", "http://localhost:3005"],
     credentials: false,
   }),
 );
@@ -70,14 +87,130 @@ function asyncHandler(
   };
 }
 
+function navPageFromModule(value: unknown): NavPage {
+  if (typeof value !== "string") {
+    throw new HttpError(400, "invalid_request", "module is required");
+  }
+  const normalized = value.startsWith("/dashboard") ? value : `/dashboard/${value}`;
+  const page = pageForRoute(normalized);
+  if (!page) {
+    throw new HttpError(400, "invalid_module", "Module does not map to a dashboard page.");
+  }
+  return page;
+}
+
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
 });
 
 app.get(
+  "/api/access-review/overview",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(await getAccessReviewOverview(context));
+  }),
+);
+
+app.post(
+  "/api/access-review/campaigns",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.status(201).json(await createAccessReviewCampaign(context, request.body as Record<string, unknown>));
+  }),
+);
+
+app.patch(
+  "/api/access-review/items/:itemId",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { itemId } = request.params;
+    if (typeof itemId !== "string") {
+      throw new HttpError(400, "invalid_request", "itemId is required");
+    }
+    response.json(await updateAccessReviewItem(context, itemId, request.body as Record<string, unknown>));
+  }),
+);
+
+app.post(
+  "/api/roles/accept-invite",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(await acceptInvites(context));
+  }),
+);
+
+app.get(
+  "/api/roles/me",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(await getMyRole(context));
+  }),
+);
+
+app.post(
+  "/api/roles/invite",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.status(201).json(await inviteMember(context, request.body as Record<string, unknown>));
+  }),
+);
+
+app.get(
+  "/api/roles/members",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(await listMembers(context));
+  }),
+);
+
+app.get(
+  "/api/roles/invitations",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(await listInvitations(context));
+  }),
+);
+
+app.get(
+  "/api/roles/changelog",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const page = typeof request.query.page === "string" ? Number.parseInt(request.query.page, 10) : 1;
+    const limit = typeof request.query.limit === "string" ? Number.parseInt(request.query.limit, 10) : 20;
+    response.json(await listChangelog(context, page, limit));
+  }),
+);
+
+app.patch(
+  "/api/roles/members/:membershipId",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { membershipId } = request.params;
+    if (typeof membershipId !== "string") {
+      throw new HttpError(400, "invalid_request", "membershipId is required");
+    }
+    response.json(await updateMember(context, membershipId, request.body as Record<string, unknown>));
+  }),
+);
+
+app.delete(
+  "/api/roles/members/:membershipId",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { membershipId } = request.params;
+    if (typeof membershipId !== "string") {
+      throw new HttpError(400, "invalid_request", "membershipId is required");
+    }
+    await removeMember(context, membershipId);
+    response.status(204).send();
+  }),
+);
+
+app.get(
   "/api/repos",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_leakage_scanner", "read_only");
     response.json(await listRepos(context));
   }),
 );
@@ -86,6 +219,7 @@ app.delete(
   "/api/repos/connection",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "integrations", "full");
     await disconnectGitHub(context);
     response.status(204).send();
   }),
@@ -95,6 +229,7 @@ app.get(
   "/api/scans",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_leakage_scanner", "read_only");
     response.json(await listScans(context));
   }),
 );
@@ -103,6 +238,7 @@ app.get(
   "/api/scans/:scanId",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_leakage_scanner", "read_only");
     const { scanId } = request.params;
     if (typeof scanId !== "string") {
       throw new HttpError(400, "invalid_request", "scanId is required");
@@ -115,6 +251,7 @@ app.post(
   "/api/scans",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_leakage_scanner", "full");
     response.json(await createScan(context, request.body));
   }),
 );
@@ -127,6 +264,7 @@ app.get(
     if (typeof module !== "string") {
       throw new HttpError(400, "invalid_request", "module query is required");
     }
+    await requirePermission(context, navPageFromModule(module), "read_only");
     response.json(await listModuleRecords(context, module));
   }),
 );
@@ -135,6 +273,7 @@ app.post(
   "/api/module-records",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, navPageFromModule((request.body as { module?: unknown })?.module), "full");
     response.json(await createModuleRecord(context, request.body));
   }),
 );
@@ -146,6 +285,11 @@ app.patch(
     const { id } = request.params;
     if (typeof id !== "string") {
       throw new HttpError(400, "invalid_request", "id is required");
+    }
+    if ((request.body as { module?: unknown })?.module) {
+      await requirePermission(context, navPageFromModule((request.body as { module?: unknown }).module), "full");
+    } else {
+      await requirePermission(context, "dashboard", "full");
     }
     response.json(await updateModuleRecord(context, id, request.body));
   }),
@@ -159,6 +303,7 @@ app.delete(
     if (typeof id !== "string") {
       throw new HttpError(400, "invalid_request", "id is required");
     }
+    await requirePermission(context, "dashboard", "full");
     await deleteModuleRecord(context, id);
     response.status(204).send();
   }),
@@ -168,6 +313,7 @@ app.post(
   "/api/deid/check",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "de_identification_checker", "full");
     response.json(
       await createDeidCheck(context, request.body as {
         dataset_label?: string;
@@ -183,6 +329,7 @@ app.get(
   "/api/deid/check/:id",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "de_identification_checker", "read_only");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     response.json(await getDeidCheck(context, id));
@@ -193,6 +340,7 @@ app.post(
   "/api/deid/check/:id/recheck",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "de_identification_checker", "full");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     response.json(await recheckDeid(context, id, request.body as { data?: string; dataset_label?: string }));
@@ -203,6 +351,7 @@ app.post(
   "/api/deid/check/:id/expert-review",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "de_identification_checker", "full");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     response.json(
@@ -220,6 +369,7 @@ app.get(
   "/api/deid/check/:id/report",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "de_identification_checker", "read_only");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     const out = await buildDeidAssessmentReport(context, id);
@@ -233,6 +383,7 @@ app.get(
   "/api/deid/check/:id/export.csv",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "de_identification_checker", "read_only");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     const out = await exportDeidAssessmentCsv(context, id);
@@ -246,6 +397,7 @@ app.post(
   "/api/deid/run",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "de_identification_checker", "full");
     response.json(
       await runDeidentifier(context, request.body as {
         dataset_label?: string;
@@ -266,6 +418,7 @@ app.get(
   "/api/deid/run/:id",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "de_identification_checker", "read_only");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     response.json(await getDeidJob(context, id));
@@ -276,6 +429,7 @@ app.get(
   "/api/deid/history",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "de_identification_checker", "read_only");
     const q = request.query;
     response.json(
       await getDeidHistory(context, {
@@ -295,6 +449,7 @@ app.post(
   "/api/phi-scan",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_leakage_scanner", "full");
     response.json(await runPhiScan(context, request.body));
   }),
 );
@@ -303,6 +458,7 @@ app.get(
   "/api/phi-scan",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_leakage_scanner", "read_only");
     response.json(
       await getPhiScanOverview(context, {
         scan_id: typeof request.query.scan_id === "string" ? request.query.scan_id : undefined,
@@ -319,6 +475,7 @@ app.patch(
   "/api/phi-scan/findings/:id",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_leakage_scanner", "full");
     const { id } = request.params;
     if (typeof id !== "string") {
       throw new HttpError(400, "invalid_request", "id is required");
@@ -332,6 +489,7 @@ app.post(
   "/api/phi-scan/schedule",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_leakage_scanner", "full");
     await createPhiScanSchedule(context, request.body);
     response.status(201).json({ ok: true });
   }),
@@ -341,6 +499,7 @@ app.get(
   "/api/phi-inventory",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     const q = request.query;
     response.json(
       await listPhiInventory(context, {
@@ -362,6 +521,7 @@ app.get(
   "/api/phi-inventory/coverage",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     response.json(await getPhiInventoryCoverage(context));
   }),
 );
@@ -370,6 +530,7 @@ app.get(
   "/api/phi-inventory/risk-summary",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     response.json(await getPhiInventoryRiskSummary(context));
   }),
 );
@@ -378,6 +539,7 @@ app.post(
   "/api/phi-inventory/import",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "full");
     response.json(await importPhiSystems(context, request.body as { rows?: Array<Record<string, unknown>> }));
   }),
 );
@@ -386,6 +548,7 @@ app.patch(
   "/api/phi-inventory/bulk",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "full");
     response.json(
       await updatePhiSystemsBulk(context, request.body as { ids?: string[]; updates?: Record<string, unknown> }),
     );
@@ -396,6 +559,7 @@ app.post(
   "/api/phi-inventory/export/csv",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     const q = request.body as Record<string, string>;
     const out = await exportPhiInventoryCsv(context, {
       search: q.search,
@@ -416,6 +580,7 @@ app.post(
   "/api/phi-inventory/export/audit-package",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     const body = request.body as { include_decommissioned?: boolean; system_ids?: string[] };
     const out = await buildAuditPackagePdf(context, body);
     response.setHeader("Content-Type", "application/pdf");
@@ -428,6 +593,7 @@ app.get(
   "/api/phi-inventory/:id",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     const row = await getPhiSystemById(context, id);
@@ -440,6 +606,7 @@ app.get(
   "/api/phi-inventory/:id/audit-log",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     response.json(await getPhiSystemAuditLog(context, id));
@@ -450,6 +617,7 @@ app.get(
   "/api/phi-inventory/:id/reviews",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     response.json(await listPhiSystemReviews(context, id));
@@ -460,6 +628,7 @@ app.get(
   "/api/phi-inventory/:id/review/:review_id/certificate",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     const { id, review_id } = request.params;
     if (typeof id !== "string" || typeof review_id !== "string") {
       throw new HttpError(400, "invalid_request", "id and review_id are required");
@@ -475,6 +644,7 @@ app.post(
   "/api/phi-inventory",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "full");
     response.status(201).json(await createPhiSystem(context, request.body as Record<string, unknown>));
   }),
 );
@@ -483,6 +653,7 @@ app.patch(
   "/api/phi-inventory/:id",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "full");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     response.json(await updatePhiSystem(context, id, request.body as Record<string, unknown>));
@@ -493,6 +664,7 @@ app.delete(
   "/api/phi-inventory/:id",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "full");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     await softDeletePhiSystem(context, id);
@@ -504,6 +676,7 @@ app.post(
   "/api/phi-inventory/:id/review",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "full");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     response.json(
@@ -522,6 +695,7 @@ app.post(
   "/api/phi-inventory/:id/decommission",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "full");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     response.json(
@@ -541,6 +715,7 @@ app.get(
   "/api/phi-inventory/:id/decommission/certificate",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "read_only");
     const { id } = request.params;
     if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
     const out = await buildDecommissionCertificatePdf(context, id);
@@ -554,6 +729,7 @@ app.post(
   "/api/phi-inventory/sync-from-scanner",
   asyncHandler(async (request, response) => {
     const context = await requireAuth(request);
+    await requirePermission(context, "phi_inventory", "full");
     const scanId = (request.body as { scan_id?: string })?.scan_id;
     if (typeof scanId !== "string" || !scanId.trim()) {
       throw new HttpError(400, "invalid_request", "scan_id is required");

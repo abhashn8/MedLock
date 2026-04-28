@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { HsIcon } from "@/components/hipaa-shield/HsIcon"
 import { HsTooltip } from "@/components/hipaa-shield/HsTooltip"
 import { dashboardNavSections } from "@/app/dashboard/nav.config"
+import { canAccess, pageForRoute, type Role } from "@/lib/rbac/permissions"
 import { cn } from "@/lib/utils"
 
 const STORAGE_KEY = "hs-sidebar-collapsed"
@@ -16,6 +17,7 @@ export type HsAppSidebarProps = {
   onToggleCollapsed: () => void
   userName: string
   userRole: string
+  role?: Role | null
   className?: string
 }
 
@@ -28,9 +30,19 @@ export function HsAppSidebar({
   onToggleCollapsed,
   userName,
   userRole,
+  role,
   className,
 }: HsAppSidebarProps) {
   const pathname = usePathname()
+  const sections = dashboardNavSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        const page = pageForRoute(item.href)
+        return !page || !role || canAccess(role, page)
+      }),
+    }))
+    .filter((section) => section.items.length > 0)
 
   function isActive(href: string): boolean {
     if (!activeHref) return false
@@ -79,7 +91,7 @@ export function HsAppSidebar({
       </div>
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        {dashboardNavSections.map((section) => (
+        {sections.map((section) => (
           <div key={section.id} className="mb-2">
             {!collapsed ? (
               <p className="mb-2 mt-6 px-3 text-hs-nav-section font-medium uppercase tracking-[0.08em] text-hs-placeholder first:mt-0">
