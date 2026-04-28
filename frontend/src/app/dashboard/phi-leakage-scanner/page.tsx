@@ -40,8 +40,8 @@ function formatScanTime(iso: string): string {
 
 function severityStyle(severity: PhiFinding["severity"]): string {
   if (severity === "Critical") return "border-hs-danger-border bg-hs-danger-bg text-hs-danger";
-  if (severity === "High") return "border-[#FDE68A] bg-hs-warning-bg text-hs-warning";
-  if (severity === "Medium") return "border-[#BFDBFE] bg-hs-info-bg text-hs-primary";
+  if (severity === "High") return "border-hs-warning-border bg-hs-warning-bg text-hs-warning";
+  if (severity === "Medium") return "border-hs-info-border bg-hs-info-bg text-hs-primary";
   return "border-hs-border bg-hs-fill text-hs-muted";
 }
 

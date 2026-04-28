@@ -23,7 +23,7 @@ export function HsSecondaryButton({
       type={type}
       disabled={isDisabled}
       className={cn(
-        "inline-flex h-10 min-w-[40px] items-center justify-center rounded-hs border border-hs-border bg-hs-card px-4 text-hs-body font-medium text-[#374151]",
+        "inline-flex h-10 min-w-[40px] items-center justify-center rounded-hs border border-hs-border bg-hs-card px-4 text-hs-body font-medium text-hs-text",
         "hs-transition-button-bg hover:bg-hs-fill-hover",
         "focus-visible:outline-none focus-visible:shadow-hs-focus",
         "disabled:cursor-not-allowed disabled:bg-hs-fill disabled:text-hs-placeholder",

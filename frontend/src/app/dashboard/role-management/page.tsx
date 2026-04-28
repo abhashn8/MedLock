@@ -37,13 +37,13 @@ import { HsTextarea } from "@/components/hipaa-shield/HsTextarea";
 import { cn } from "@/lib/utils";
 
 const roleBadgeStyles: Record<Role, string> = {
-  admin: "border-purple-200 bg-purple-50 text-purple-700",
-  privacy_officer: "border-teal-200 bg-teal-50 text-teal-700",
-  security_officer: "border-red-200 bg-red-50 text-red-700",
-  compliance_manager: "border-blue-200 bg-blue-50 text-blue-700",
-  auditor: "border-amber-200 bg-amber-50 text-amber-700",
-  data_analyst: "border-gray-200 bg-gray-50 text-gray-700",
-  developer: "border-pink-200 bg-pink-50 text-pink-700",
+  admin: "border-purple-500/30 bg-purple-500/10 text-purple-300",
+  privacy_officer: "border-teal-500/30 bg-teal-500/10 text-teal-300",
+  security_officer: "border-red-500/30 bg-red-500/10 text-red-300",
+  compliance_manager: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
+  auditor: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+  data_analyst: "border-slate-700 bg-slate-800/40 text-slate-300",
+  developer: "border-pink-500/30 bg-pink-500/10 text-pink-300",
 };
 
 const permissionStyles: Record<Permission, string> = {

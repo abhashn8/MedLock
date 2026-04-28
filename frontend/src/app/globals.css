@@ -4,49 +4,49 @@
 
 @layer base {
   :root {
-    /* HIPAA-aligned semantic tokens (maps to Tailwind shadcn-style names) */
-    --background: 220 14% 97%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 224 78% 48%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 214 95% 93%;
-    --accent-foreground: 224 78% 40%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 224 78% 48%;
+    /* MedLock dark palette (shadcn-style HSL tokens, mapped to hs-* Tailwind palette) */
+    --background: 222 41% 5%;       /* #060912 */
+    --foreground: 210 40% 96%;      /* #f1f5f9 */
+    --card: 222 36% 8%;             /* #0b111f */
+    --card-foreground: 210 40% 96%;
+    --popover: 222 36% 8%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 187 85% 53%;         /* cyan-400 #22d3ee */
+    --primary-foreground: 222 41% 5%;
+    --secondary: 215 25% 12%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 215 25% 12%;
+    --muted-foreground: 215 16% 65%;
+    --accent: 187 85% 53%;
+    --accent-foreground: 222 41% 5%;
+    --destructive: 0 91% 71%;       /* red-400 #f87171 */
+    --destructive-foreground: 210 40% 96%;
+    --border: 215 25% 17%;          /* slate-800 #1e293b */
+    --input: 215 25% 17%;
+    --ring: 187 85% 53%;
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 220 14% 97%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 224 78% 48%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 214 95% 93%;
-    --accent-foreground: 224 78% 40%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 224 78% 48%;
+    --background: 222 41% 5%;
+    --foreground: 210 40% 96%;
+    --card: 222 36% 8%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 36% 8%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 187 85% 53%;
+    --primary-foreground: 222 41% 5%;
+    --secondary: 215 25% 12%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 215 25% 12%;
+    --muted-foreground: 215 16% 65%;
+    --accent: 187 85% 53%;
+    --accent-foreground: 222 41% 5%;
+    --destructive: 0 91% 71%;
+    --destructive-foreground: 210 40% 96%;
+    --border: 215 25% 17%;
+    --input: 215 25% 17%;
+    --ring: 187 85% 53%;
   }
 }
 
@@ -79,5 +79,52 @@
   ::view-transition-new(*) {
     animation-duration: 0.25s;
     animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* MedLock landing page palette + utilities (scoped to marketing pages) */
+/* ------------------------------------------------------------------ */
+@layer base {
+  :root {
+    --ml-bg: #060912;
+    --ml-bg-elevated: #0b111f;
+    --ml-surface: rgba(15, 23, 42, 0.6);
+    --ml-border: rgba(148, 163, 184, 0.12);
+    --ml-border-hover: rgba(148, 163, 184, 0.22);
+    --ml-text: #f8fafc;
+    --ml-text-muted: #94a3b8;
+    --ml-text-subtle: #64748b;
+    --ml-accent: #22d3ee;
+    --ml-accent-soft: #67e8f9;
+    --ml-accent-deep: #0891b2;
+  }
+}
+
+@layer utilities {
+  .ml-grid-bg {
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  .ml-radial-fade {
+    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+
+  .ml-accent-text {
+    background: linear-gradient(90deg, #22d3ee 0%, #60a5fa 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .ml-headline-fade {
+    background: linear-gradient(180deg, #f8fafc 0%, #cbd5e1 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }

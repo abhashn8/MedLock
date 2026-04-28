@@ -24,9 +24,9 @@ export function HsComplianceScoreRing({
   const c = 2 * Math.PI * r
 
   const color = useMemo(() => {
-    if (score >= 85) return "#16A34A"
-    if (score >= 65) return "#D97706"
-    return "#DC2626"
+    if (score >= 85) return "#34d399"
+    if (score >= 65) return "#fbbf24"
+    return "#f87171"
   }, [score])
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export function HsComplianceScoreRing({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="#F1F3F7"
+          stroke="#1e293b"
           strokeWidth={stroke}
         />
         <circle
@@ -67,7 +67,7 @@ export function HsComplianceScoreRing({
           y="50%"
           dominantBaseline="middle"
           textAnchor="middle"
-          fill="#111827"
+          fill="#f1f5f9"
           style={{ fontSize: 28, fontWeight: 600, fontFamily: "inherit" }}
         >
           {Math.round(progress)}

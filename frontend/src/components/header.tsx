@@ -2,8 +2,6 @@
 
 import React from "react"
 import Link from "next/link"
-import { Shield } from "lucide-react"
-import { HsIcon } from "@/components/hipaa-shield/HsIcon"
 import { cn } from "@/lib/utils"
 
 export function Header() {
@@ -21,94 +19,103 @@ export function Header() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 w-full border-b border-hs-border bg-hs-card",
-        scrolled && "bg-hs-card",
+        "sticky top-0 z-50 w-full transition-colors",
+        scrolled
+          ? "border-b border-slate-900/80 bg-[var(--ml-bg)]/80 backdrop-blur-lg"
+          : "border-b border-transparent",
       )}
     >
-      <nav className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4 md:px-6">
+      <nav className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 md:px-6">
         <Link
           href="/"
-          className="flex items-center gap-2 rounded-hs px-2 py-1 text-hs-body font-medium text-hs-text hs-transition-border hover:bg-hs-fill-hover"
+          className="flex items-center gap-2 text-sm font-semibold tracking-tight text-slate-100"
         >
-          <HsIcon icon={Shield} className="text-hs-primary" />
-          <span>MedLock</span>
+          <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-md border border-cyan-500/30 bg-cyan-500/10">
+            <span
+              className="absolute inset-0 rounded-md bg-cyan-400/20 blur"
+              aria-hidden
+            />
+            <i
+              className="fa-solid fa-shield-halved relative text-[13px] text-cyan-300"
+              aria-hidden
+            />
+          </span>
+          MedLock
         </Link>
-        <div className="hidden items-center gap-6 md:flex">
+
+        <div className="hidden items-center gap-8 md:flex">
           <a
-            href="#product"
-            className="text-hs-secondary font-medium text-hs-muted hover:text-hs-text"
+            href="#how-it-works"
+            className="text-sm font-medium text-slate-400 transition-colors hover:text-slate-100"
           >
-            Product
+            How it works
           </a>
           <a
-            href="#security"
-            className="text-hs-secondary font-medium text-hs-muted hover:text-hs-text"
+            href="#features"
+            className="text-sm font-medium text-slate-400 transition-colors hover:text-slate-100"
           >
-            Security
+            Features
           </a>
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className={cn(
-                "inline-flex h-9 items-center justify-center rounded-hs border border-hs-border bg-hs-card px-3 text-hs-secondary font-medium text-[#374151]",
-                "hs-transition-button-bg hover:bg-hs-fill-hover focus-visible:outline-none focus-visible:shadow-hs-focus",
-              )}
+              className="inline-flex h-9 items-center justify-center rounded-lg px-3 text-sm font-medium text-slate-300 transition-colors hover:text-white"
             >
               Sign in
             </Link>
             <Link
               href="/signup"
-              className={cn(
-                "inline-flex h-9 items-center justify-center rounded-hs border border-transparent bg-hs-primary px-3 text-hs-secondary font-medium text-white",
-                "hs-transition-button-bg hover:bg-hs-primary-hover active:scale-[0.98] active:bg-hs-primary-active",
-                "focus-visible:outline-none focus-visible:shadow-hs-focus",
-              )}
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-slate-950 shadow-[0_0_0_1px_rgba(34,211,238,0.3),0_0_18px_rgba(34,211,238,0.35)] transition-all hover:bg-cyan-300 hover:shadow-[0_0_0_1px_rgba(34,211,238,0.4),0_0_28px_rgba(34,211,238,0.55)]"
             >
-              Get started
+              Get Started
             </Link>
           </div>
         </div>
+
         <button
           type="button"
-          className="rounded-hs border border-hs-border px-3 py-2 text-hs-caption font-medium text-hs-muted md:hidden"
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-800 px-3 text-sm font-medium text-slate-300 md:hidden"
           aria-expanded={open}
           aria-controls="mobile-nav"
           onClick={() => setOpen((o) => !o)}
         >
-          Menu
+          {open ? "Close" : "Menu"}
         </button>
       </nav>
+
       {open ? (
         <div
           id="mobile-nav"
-          className="border-t border-hs-border bg-hs-card px-4 py-4 md:hidden"
+          className="border-t border-slate-900/80 bg-[var(--ml-bg)]/95 px-4 py-4 backdrop-blur-lg md:hidden"
         >
-          <div className="flex flex-col gap-3">
-            <a href="#product" className="text-hs-body font-medium text-hs-text">
-              Product
+          <div className="flex flex-col gap-2">
+            <a
+              href="#how-it-works"
+              onClick={() => setOpen(false)}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-900 hover:text-white"
+            >
+              How it works
             </a>
-            <a href="#security" className="text-hs-body font-medium text-hs-text">
-              Security
+            <a
+              href="#features"
+              onClick={() => setOpen(false)}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-900 hover:text-white"
+            >
+              Features
             </a>
             <Link
               href="/login"
               onClick={() => setOpen(false)}
-              className={cn(
-                "inline-flex h-10 w-full items-center justify-center rounded-hs border border-hs-border bg-hs-card text-hs-body font-medium text-[#374151]",
-                "hover:bg-hs-fill-hover",
-              )}
+              className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-lg border border-slate-800 text-sm font-semibold text-slate-200 hover:bg-slate-900"
             >
               Sign in
             </Link>
             <Link
               href="/signup"
               onClick={() => setOpen(false)}
-              className={cn(
-                "inline-flex h-10 w-full items-center justify-center rounded-hs bg-hs-primary text-hs-body font-medium text-white",
-                "hover:bg-hs-primary-hover",
-              )}
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-cyan-400 text-sm font-semibold text-slate-950"
             >
-              Get started
+              Get Started
             </Link>
           </div>
         </div>
