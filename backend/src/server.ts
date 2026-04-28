@@ -1,3 +1,6 @@
+import { createSafeConsole } from "@medlock/safe-logger";
+createSafeConsole();
+
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { pageForRoute, type NavPage } from "@medlock/rbac";

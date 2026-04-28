@@ -29,7 +29,7 @@ export type Scan = {
   id: string;
   repo_owner: string;
   repo_name: string;
-  findings: Finding[];
+  findings: PhiFinding[];
   created_at: string;
 };
 
@@ -59,6 +59,7 @@ export type PhiFinding = {
   title?: string | null;
   description?: string | null;
   recommendation: string;
+  hipaa_reference?: string | null;
   status: "open" | "false_positive" | "resolved";
   false_positive_reason: string | null;
   owner: string | null;

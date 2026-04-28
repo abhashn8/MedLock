@@ -4,24 +4,37 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api/client";
-import type { Finding, Scan } from "@/lib/api/types";
-import { HsSeverityBadge } from "@/components/hipaa-shield/HsSeverityBadge";
+import type { PhiFinding, Scan } from "@/lib/api/types";
 import { HsSkeleton } from "@/components/hipaa-shield/HsSkeleton";
 import { cn } from "@/lib/utils";
+
+type Severity = PhiFinding["severity"];
 
 type State =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "ready"; scan: Scan };
 
-const SEVERITY_ORDER: Finding["severity"][] = ["CRITICAL", "HIGH", "MEDIUM"];
+const SEVERITY_ORDER: Severity[] = [
+  "Critical",
+  "High",
+  "Medium",
+  "Low",
+  "Informational",
+];
 
-function computeScore(findings: Finding[]): number {
+const SEVERITY_PENALTY: Record<Severity, number> = {
+  Critical: 10,
+  High: 5,
+  Medium: 2,
+  Low: 1,
+  Informational: 0,
+};
+
+function computeScore(findings: PhiFinding[]): number {
   let penalty = 0;
   for (const f of findings) {
-    if (f.severity === "CRITICAL") penalty += 10;
-    else if (f.severity === "HIGH") penalty += 5;
-    else penalty += 2;
+    penalty += SEVERITY_PENALTY[f.severity] ?? 0;
   }
   return Math.max(0, 100 - penalty);
 }
@@ -30,6 +43,31 @@ function scoreColor(score: number): string {
   if (score >= 80) return "text-hs-success";
   if (score >= 50) return "text-hs-warning";
   return "text-hs-danger";
+}
+
+function severityChipClasses(severity: Severity): string {
+  if (severity === "Critical")
+    return "border-hs-danger-border bg-hs-danger-bg text-hs-danger";
+  if (severity === "High")
+    return "border-[#FDE68A] bg-hs-warning-bg text-hs-warning";
+  if (severity === "Medium")
+    return "border-[#BFDBFE] bg-hs-info-bg text-hs-primary";
+  if (severity === "Low")
+    return "border-hs-success-border bg-hs-low-bg text-hs-low-text";
+  return "border-hs-border bg-hs-fill text-hs-muted";
+}
+
+function SeverityBadge({ severity }: { severity: Severity }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-hs-pill border px-2 py-1 text-[11px] font-medium leading-none",
+        severityChipClasses(severity),
+      )}
+    >
+      {severity}
+    </span>
+  );
 }
 
 export default function ReportPage() {
@@ -67,13 +105,16 @@ export default function ReportPage() {
 
   const grouped = useMemo(() => {
     if (state.kind !== "ready") return null;
-    const buckets: Record<Finding["severity"], Finding[]> = {
-      CRITICAL: [],
-      HIGH: [],
-      MEDIUM: [],
+    const buckets: Record<Severity, PhiFinding[]> = {
+      Critical: [],
+      High: [],
+      Medium: [],
+      Low: [],
+      Informational: [],
     };
     for (const f of state.scan.findings ?? []) {
-      buckets[f.severity].push(f);
+      const bucket = buckets[f.severity];
+      if (bucket) bucket.push(f);
     }
     return buckets;
   }, [state]);
@@ -124,17 +165,20 @@ function ReportBody({
   grouped,
 }: {
   scan: Scan;
-  grouped: Record<Finding["severity"], Finding[]>;
+  grouped: Record<Severity, PhiFinding[]>;
 }) {
   const findings = scan.findings ?? [];
   const total = findings.length;
   const score = computeScore(findings);
+  const repoLabel = scan.repo_owner
+    ? `${scan.repo_owner} / ${scan.repo_name}`
+    : scan.repo_name;
 
   return (
     <div className="space-y-8">
       <div className="space-y-1">
         <p className="text-hs-caption font-medium uppercase tracking-wide text-hs-muted">
-          {scan.repo_owner} / {scan.repo_name}
+          {repoLabel}
         </p>
         <h1 className="text-hs-title font-semibold text-hs-text">
           PHI scan report
@@ -164,7 +208,7 @@ function ReportBody({
           <div className="mt-3 flex flex-wrap gap-3">
             {SEVERITY_ORDER.map((sev) => (
               <div key={sev} className="flex items-center gap-2">
-                <HsSeverityBadge severity={sev} />
+                <SeverityBadge severity={sev} />
                 <span className="text-hs-secondary font-medium text-hs-muted">
                   {grouped[sev].length}
                 </span>
@@ -180,7 +224,7 @@ function ReportBody({
             No PHI leaks detected
           </p>
           <p className="mt-2 text-hs-body font-normal text-hs-muted">
-            We scanned this repository and found no risky sinks handling PHI data.
+            We scanned this repository and found no compliance violations.
           </p>
         </div>
       ) : (
@@ -191,14 +235,14 @@ function ReportBody({
             return (
               <section key={sev} className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <HsSeverityBadge severity={sev} />
+                  <SeverityBadge severity={sev} />
                   <span className="text-hs-body font-normal text-hs-muted">
                     {items.length} finding{items.length === 1 ? "" : "s"}
                   </span>
                 </div>
                 <ul className="space-y-3">
                   {items.map((f, i) => (
-                    <li key={`${f.filePath}:${f.line}:${f.phiField}:${i}`}>
+                    <li key={f.id ?? `${f.source}:${f.line_number ?? "_"}:${i}`}>
                       <FindingCard finding={f} />
                     </li>
                   ))}
@@ -212,39 +256,63 @@ function ReportBody({
   );
 }
 
-function FindingCard({ finding }: { finding: Finding }) {
+function FindingCard({ finding }: { finding: PhiFinding }) {
   return (
     <div className="rounded-hs-card border border-hs-border bg-hs-card p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <HsSeverityBadge severity={finding.severity} />
+        <SeverityBadge severity={finding.severity} />
         <span className="font-mono text-hs-secondary text-hs-text">
-          {finding.filePath}
+          {finding.source}
         </span>
-        <span className="text-hs-caption text-hs-placeholder">·</span>
-        <span className="font-mono text-hs-caption text-hs-muted">
-          line {finding.line}
-        </span>
+        {finding.line_number != null && (
+          <>
+            <span className="text-hs-caption text-hs-placeholder">·</span>
+            <span className="font-mono text-hs-caption text-hs-muted">
+              line {finding.line_number}
+            </span>
+          </>
+        )}
       </div>
+
+      {finding.title && (
+        <p className="mt-3 text-hs-body font-medium text-hs-text">
+          {finding.title}
+        </p>
+      )}
 
       <pre className="mt-3 overflow-x-auto rounded-hs border border-hs-border bg-hs-fill px-3 py-2 font-mono text-hs-caption text-hs-text">
         <code>
-          <span className="select-none pr-3 text-hs-placeholder">
-            {finding.line}
-          </span>
-          {finding.lineContent}
+          {finding.line_number != null && (
+            <span className="select-none pr-3 text-hs-placeholder">
+              {finding.line_number}
+            </span>
+          )}
+          {finding.evidence}
         </code>
       </pre>
 
-      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 font-mono text-hs-caption text-hs-text">
-        <div>
-          <span className="text-hs-muted">PHI field: </span>
-          <span>{finding.phiField}</span>
+      {finding.description && (
+        <p className="mt-3 text-hs-body font-normal text-hs-muted">
+          {finding.description}
+        </p>
+      )}
+
+      {finding.recommendation && (
+        <div className="mt-3 rounded-hs border border-hs-border bg-hs-fill px-3 py-2">
+          <p className="text-hs-caption font-medium uppercase tracking-wide text-hs-muted">
+            Recommendation
+          </p>
+          <p className="mt-1 text-hs-body font-normal text-hs-text">
+            {finding.recommendation}
+          </p>
         </div>
-        <div>
-          <span className="text-hs-muted">Sink: </span>
-          <span>{finding.sink}</span>
-        </div>
-      </div>
+      )}
+
+      {finding.hipaa_reference && (
+        <p className="mt-3 font-mono text-hs-caption text-hs-muted">
+          HIPAA: <span className="text-hs-text">{finding.hipaa_reference}</span>
+        </p>
+      )}
     </div>
   );
 }
