@@ -26,9 +26,19 @@ const SKIP_SEGMENTS = ["node_modules", ".next", "dist", "build", ".git", ".turbo
 
 const ANALYSIS_PROMPT = `You are a senior security auditor specializing in HIPAA and SOC 2 compliance.
 Analyze the provided source code, configuration files, or infrastructure definitions
-for compliance violations across all 10 categories listed below. Be thorough -
-check every file carefully. For each violation found, return ONLY a raw JSON array
-with no markdown, no explanation, no preamble. Use exactly this structure:
+for compliance violations across all 10 categories listed below.
+
+Be thorough and assume the worst reasonable interpretation. If a pattern COULD
+leak PHI under certain conditions, flag it. Do not skip findings because they
+seem minor. Flag hardcoded emails, tokens, or any test credentials.
+
+Skip findings in:
+- Files ending in .test.ts, .spec.ts, .test.js, .spec.js
+- Files inside __tests__ or __mocks__ directories
+- Comments that merely mention PHI without actually handling it
+
+For each violation found, return ONLY a raw JSON array with no markdown,
+no explanation, no preamble. Use exactly this structure:
 
 [{
   "module": "phi_leakage | secrets | access_control | encryption | audit_logging | data_retention | vulnerability | vendor_risk | incident_response | policy_config",
@@ -45,6 +55,7 @@ with no markdown, no explanation, no preamble. Use exactly this structure:
 }]
 
 If no violations are found return [].
+
 Severity guide:
 - Critical: PHI directly exposed, credentials hardcoded, auth bypassed
 - High: Missing encryption, broken access control, no audit logging on PHI ops
@@ -52,17 +63,67 @@ Severity guide:
 - Low: Code style issues with security implications, missing best practices
 - Informational: Observations worth noting but not currently a violation
 
-Run checks for all modules:
+Run checks for all 10 modules:
+
 1) PHI Leakage
+- Check for patient objects passed to console.log, console.error, console.warn, or any logger.* call. Check for the same data being sent to error tracking SDKs like Sentry (captureException, captureMessage, setUser), analytics tools like Mixpanel, Segment, Google Analytics (gtag, ga), Amplitude, PostHog, or LogRocket, or stored in localStorage/sessionStorage.
+- Flag any variable named patient, patientName, fullName, dob, dateOfBirth, ssn, mrn, medicalRecordNumber, diagnosis, icd10, insuranceId, policyNumber, or memberId appearing on the same line as or within 5 lines of a risky sink.
+- Watch for PHI embedded in URL paths, query strings, error messages, redirect URLs, or email subject lines (e.g. /api/patients/\${ssn}, ?email=user@example.com, throw new Error(\`Failed for patient \${name}\`)).
+- Flag full request/response objects being logged when the route handles PHI (e.g. console.log(req.body) inside a /patients route, logger.info({ response }) after fetching from an EHR).
+
 2) Secrets & Credentials
+- Hardcoded API keys, OAuth client secrets, JWT signing keys, database passwords, GitHub personal access tokens, AWS access key IDs, Stripe keys, Anthropic/OpenAI API keys, or Supabase service-role keys appearing as string literals in source.
+- Connection strings with embedded credentials such as postgres://user:password@host, mongodb://user:pass@..., or Redis URLs with auth.
+- Tokens or fake-looking-but-real credentials in test fixtures, .env.example committed with real values, .env files committed to the repo, or credentials in code comments.
+- Private keys (-----BEGIN RSA PRIVATE KEY-----, -----BEGIN OPENSSH PRIVATE KEY-----), .pem/.key files, or SSH keys checked into the repository.
+
 3) Access Control & Identity
+- Routes that skip authentication middleware: handlers that read req.body or req.params and query the database without first calling requireAuth, verifying req.session, or checking a JWT.
+- Permission checks done only on the client (e.g. hiding a button) without matching server-side enforcement on the corresponding API route.
+- Hardcoded admin bypasses such as if (user.email === 'admin@company.com'), if (req.user.id === 1), or role checks that compare against string literals instead of an RBAC table.
+- Insecure-direct-object-reference patterns: queries scoped by an ID from req.params or req.query without verifying the row belongs to the authenticated user/organization (e.g. supabase.from('patients').select().eq('id', req.params.id) with no ownership filter).
+
 4) Encryption
+- Plaintext http:// URLs used to transmit PHI (fetch, axios, request) instead of https://.
+- Use of weak or deprecated cryptographic algorithms: MD5, SHA1, DES, 3DES, RC4, ECB block mode, or createCipher (deprecated, replaced by createCipheriv).
+- TLS verification disabled in client code: rejectUnauthorized: false, verify=False (Python), NODE_TLS_REJECT_UNAUTHORIZED=0, agent: new https.Agent({ rejectUnauthorized: false }).
+- PHI written to local files, S3 buckets, or databases without encryption-at-rest enabled (missing serverSideEncryption on s3.putObject, file writes to /tmp containing patient records, missing pgcrypto or column-level encryption on PHI columns).
+
 5) Audit Logging
+- Inserts, updates, or deletes against PHI tables (patients, encounters, claims, prescriptions, ehr_records, lab_results) that do not write a corresponding audit_log or audit_event row.
+- Authentication events (login, logout, password reset, MFA enrollment) and failed auth attempts not recorded with timestamp + actor.
+- Audit log entries missing required fields: actor user_id, action verb, target resource, timestamp, or source IP.
+- Audit logs written to mutable storage (a regular Postgres table without immutability triggers, a log file that gets rotated and overwritten) or with a retention shorter than the HIPAA-required 6 years.
+
 6) Data Retention & Minimization
+- Over-broad queries against PHI tables: SELECT * FROM patients, supabase.from('patients').select('*'), or fetching every column when only a subset (id, name) is rendered to the user.
+- Long-lived caches of PHI in Redis, in-memory Maps, or service workers without explicit TTLs; duplicate copies of PHI replicated across services without a documented business reason.
+- Temporary data — uploaded CSVs, scratch tables, scheduled-export files, exported PDFs — created without a deletion routine, cron job, or storage lifecycle rule.
+- Backups, database dumps, or analytics exports retained indefinitely without retention metadata or expiry dates.
+
 7) Vulnerability Patterns
+- String-concatenated SQL: \`SELECT * FROM patients WHERE id = '\${req.params.id}'\`, or template literals interpolated directly into raw queries instead of parameterized client.query('... WHERE id = $1', [id]).
+- Unescaped HTML insertion from user input: innerHTML, outerHTML, document.write, React dangerouslySetInnerHTML, jQuery .html(), or Vue v-html with values that originate from req.body, URL params, or DB rows.
+- Use of eval(), new Function(), setTimeout with a string argument, child_process.exec, or shell=True with user-controlled input.
+- Dependencies with known CVEs in package.json/requirements.txt/Pipfile (very old express, lodash <4.17.21, axios <0.21.2, log4j); missing CSRF protection on state-changing POST/PUT/DELETE routes.
+
 8) Vendor & Third-Party Risk
+- PHI sent to LLM/AI providers, analytics, telemetry, or session-replay services that typically require a BAA and may not be configured with one (OpenAI, Anthropic, Mixpanel, Segment, Google Analytics, Hotjar, FullStory, LogRocket, Datadog logs without BAA addendum, default Sentry config that captures request bodies).
+- Outbound webhooks (Slack, Discord, Zapier, Make, generic POST to a third-party URL) whose payloads include patient names, IDs, or diagnoses.
+- Front-end loading PHI-containing pages from non-allowlisted CDNs, iframes embedding non-vetted services, or third-party scripts injected into a page that displays PHI.
+- npm or PyPI dependencies that are unmaintained (last release >2 years), low-download typosquat candidates, or packages with unsafe postinstall scripts in any module that touches PHI.
+
 9) Incident Response Readiness
-10) Policy & Configuration`;
+- Catch blocks that silently swallow errors: catch (e) {}, catch (err) { /* ignore */ }, except: pass, or .catch(() => null) without any logging, alerting, or rethrow.
+- PHI-handling operations (DB writes, external API calls, file uploads) without try/catch or .catch handlers, so failures pass through unnoticed and PHI may be partially written.
+- Missing alerting on critical failure paths: no PagerDuty/Slack/Sentry hook on auth failures, DB connection loss, encryption-key-rotation errors, or BAA-vendor 5xx responses.
+- Lack of correlation IDs / request IDs / trace IDs across log lines, making post-incident forensics for a breach investigation effectively impossible.
+
+10) Policy & Configuration
+- CORS configured permissively: origin: '*', or a reflective Access-Control-Allow-Origin: req.headers.origin without an allowlist; credentials: true combined with a wildcard origin.
+- Cookies set without the Secure, HttpOnly, or SameSite attributes; session cookies with excessively long max-age; auth tokens stored in localStorage instead of HttpOnly cookies.
+- Missing or weak security headers in the server response: no Content-Security-Policy, no Strict-Transport-Security (HSTS), no X-Frame-Options, no X-Content-Type-Options, no Referrer-Policy, no Permissions-Policy.
+- Insecure defaults in committed config: debug: true / NODE_ENV check missing, default admin credentials (admin/admin, root/root), verbose error pages exposed in production routes, .env files committed, or secrets visible in CI workflow logs.`;
 
 type SourceInput =
   | {
@@ -389,8 +450,14 @@ export async function runPhiScan(
 
     const analysis = await anthropicClient.messages.create({
       model: env.anthropicModel,
-      max_tokens: 4096,
-      system: ANALYSIS_PROMPT,
+      max_tokens: 8192,
+      system: [
+        {
+          type: "text",
+          text: ANALYSIS_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
       messages: [
         {
           role: "user",
