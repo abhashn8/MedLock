@@ -17,7 +17,7 @@ as $$
   );
 $$;
 
-revoke all on function public.is_org_admin(uuid) from public;
+revoke all on function public.is_org_admin(uuid) from public; 
 grant execute on function public.is_org_admin(uuid) to authenticated;
 
 drop policy if exists org_memberships_select on organization_memberships;

@@ -233,7 +233,7 @@ export default function DashboardPage() {
               Recent findings
             </h2>
             <Link
-              href="/dashboard/findings-remediation"
+              href="/dashboard/risk-assessment"
               className="text-hs-secondary font-medium text-hs-primary hover:underline"
             >
               View all

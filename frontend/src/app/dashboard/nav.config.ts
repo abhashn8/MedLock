@@ -1,16 +1,11 @@
 import type { LucideIcon } from "lucide-react"
 import {
   Activity,
-  AlertCircle,
   Archive,
-  Ban,
   Bell,
   BookOpen,
   Building2,
-  CalendarClock,
-  CheckSquare,
   ClipboardCheck,
-  CreditCard,
   Database,
   FileOutput,
   FileWarning,
@@ -22,17 +17,13 @@ import {
   LayoutDashboard,
   Library,
   LineChart,
-  ListChecks,
-  Lock,
   Mail,
   Network,
   Package,
-  PenLine,
   Plug,
   ScanSearch,
   ScrollText,
   Share2,
-  Siren,
   Sparkles,
   TrendingUp,
   UserCog,
@@ -103,22 +94,12 @@ export const dashboardNavSections: DashboardNavSection[] = [
         icon: ClipboardCheck,
         badgeCount: 12,
       },
-      {
-        href: "/dashboard/emergency-access-log",
-        label: "Emergency Access Log",
-        icon: Siren,
-      },
     ],
   },
   {
     id: "security",
     label: "Security Controls",
     items: [
-      {
-        href: "/dashboard/encryption-inventory",
-        label: "Encryption Inventory",
-        icon: Lock,
-      },
       { href: "/dashboard/audit-log-viewer", label: "Audit Log Viewer", icon: ScrollText },
       {
         href: "/dashboard/anomaly-alerts",
@@ -138,18 +119,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     label: "Risk & Compliance",
     items: [
       { href: "/dashboard/risk-assessment", label: "Risk Assessment", icon: FileWarning },
-      {
-        href: "/dashboard/findings-remediation",
-        label: "Findings & Remediation",
-        icon: ListChecks,
-        badgeCount: 8,
-      },
       { href: "/dashboard/policy-library", label: "Policy Library", icon: BookOpen },
-      {
-        href: "/dashboard/controls-checklist",
-        label: "Controls Checklist",
-        icon: CheckSquare,
-      },
     ],
   },
   {
@@ -189,19 +159,12 @@ export const dashboardNavSections: DashboardNavSection[] = [
         label: "Training Course Library",
         icon: Library,
       },
-      {
-        href: "/dashboard/policy-acknowledgements",
-        label: "Policy Acknowledgements",
-        icon: PenLine,
-      },
-      { href: "/dashboard/sanctions-log", label: "Sanctions Log", icon: Ban },
     ],
   },
   {
     id: "incidents",
     label: "Incidents & Breach",
     items: [
-      { href: "/dashboard/incident-intake", label: "Incident Intake", icon: AlertCircle },
       {
         href: "/dashboard/active-incidents",
         label: "Active Incidents",
@@ -221,11 +184,6 @@ export const dashboardNavSections: DashboardNavSection[] = [
     label: "Reports & Audit",
     items: [
       { href: "/dashboard/report-generator", label: "Report Generator", icon: FileOutput },
-      {
-        href: "/dashboard/scheduled-reports",
-        label: "Scheduled Reports",
-        icon: CalendarClock,
-      },
       { href: "/dashboard/audit-packages", label: "Audit Packages", icon: Package },
       {
         href: "/dashboard/previous-reports-archive",
@@ -250,7 +208,6 @@ export const dashboardNavSections: DashboardNavSection[] = [
         icon: Bell,
       },
       { href: "/dashboard/user-management", label: "User Management", icon: UserCog },
-      { href: "/dashboard/billing-plan", label: "Billing & Plan", icon: CreditCard },
     ],
   },
 ]

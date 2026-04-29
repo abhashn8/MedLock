@@ -68,6 +68,23 @@ import {
   removeMember,
   updateMember,
 } from "./services/roles.js";
+import { listAuditEvents } from "./services/audit-events.js";
+import {
+  createSubcontractor,
+  listSubcontractors,
+  updateSubcontractor,
+} from "./services/subcontractors.js";
+import {
+  listVendorRiskPortfolio,
+  recalculateVendorRiskScores,
+} from "./services/vendor-risk-scores.js";
+import {
+  createVendor,
+  getVendorMouSignedUrl,
+  listVendors,
+  updateVendor,
+  uploadVendorMou,
+} from "./services/vendors.js";
 import { requirePermission } from "./services/rbac.js";
 import { createScan, getScan, listScans } from "./services/scans.js";
 import { requireAuth } from "./supabase.js";
@@ -206,6 +223,133 @@ app.delete(
     }
     await removeMember(context, membershipId);
     response.status(204).send();
+  }),
+);
+
+app.get(
+  "/api/audit/events",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const q = request.query;
+    const source =
+      q.source === "app" || q.source === "platform" || q.source === "all"
+        ? q.source
+        : undefined;
+    const severity =
+      q.severity === "critical" ||
+      q.severity === "high" ||
+      q.severity === "medium" ||
+      q.severity === "low" ||
+      q.severity === "info"
+        ? q.severity
+        : undefined;
+    response.json(
+      await listAuditEvents(context, {
+        source,
+        severity,
+        actor: typeof q.actor === "string" ? q.actor : undefined,
+        module: typeof q.module === "string" ? q.module : undefined,
+        action: typeof q.action === "string" ? q.action : undefined,
+        search: typeof q.search === "string" ? q.search : undefined,
+        from: typeof q.from === "string" ? q.from : undefined,
+        to: typeof q.to === "string" ? q.to : undefined,
+        since: typeof q.since === "string" ? q.since : undefined,
+        page: typeof q.page === "string" ? Number.parseInt(q.page, 10) : undefined,
+        limit: typeof q.limit === "string" ? Number.parseInt(q.limit, 10) : undefined,
+      }),
+    );
+  }),
+);
+
+app.get(
+  "/api/vendors",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(await listVendors(context));
+  }),
+);
+
+app.post(
+  "/api/vendors",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.status(201).json(await createVendor(context, request.body as Record<string, unknown>));
+  }),
+);
+
+app.patch(
+  "/api/vendors/:id",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    response.json(await updateVendor(context, id, request.body as Record<string, unknown>));
+  }),
+);
+
+app.post(
+  "/api/vendors/:id/mou",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    response.json(await uploadVendorMou(context, id, request.body as Record<string, unknown>));
+  }),
+);
+
+app.get(
+  "/api/vendors/:id/mou/signed-url",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    const q = request.query as Record<string, string | undefined>;
+    const expires =
+      typeof q.expires === "string" ? Number.parseInt(q.expires, 10) : Number.NaN;
+    const expiresSeconds = Number.isFinite(expires) ? expires : 3600;
+    response.json(await getVendorMouSignedUrl(context, id, expiresSeconds));
+  }),
+);
+
+app.get(
+  "/api/vendor-risk-scores",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(await listVendorRiskPortfolio(context));
+  }),
+);
+
+app.post(
+  "/api/vendor-risk-scores/recalculate",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(await recalculateVendorRiskScores(context));
+  }),
+);
+
+app.get(
+  "/api/subcontractors",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.json(await listSubcontractors(context));
+  }),
+);
+
+app.post(
+  "/api/subcontractors",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    response.status(201).json(await createSubcontractor(context, request.body as Record<string, unknown>));
+  }),
+);
+
+app.patch(
+  "/api/subcontractors/:id",
+  asyncHandler(async (request, response) => {
+    const context = await requireAuth(request);
+    const { id } = request.params;
+    if (typeof id !== "string") throw new HttpError(400, "invalid_request", "id is required");
+    response.json(await updateSubcontractor(context, id, request.body as Record<string, unknown>));
   }),
 );
 

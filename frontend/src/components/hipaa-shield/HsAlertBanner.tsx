@@ -41,7 +41,7 @@ export function HsAlertBanner({
   onDismiss,
   className,
 }: HsAlertBannerProps) {
-  const v = variantStyles[variant]
+  const v = variantStyles[variant] ?? variantStyles.INFO
   return (
     <div
       role="alert"

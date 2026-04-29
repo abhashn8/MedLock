@@ -13,6 +13,8 @@ export const env = {
   frontendOrigin: process.env.FRONTEND_ORIGIN ?? "http://localhost:3000",
   supabaseUrl: requireEnv("SUPABASE_URL"),
   supabaseAnonKey: requireEnv("SUPABASE_ANON_KEY"),
+  supabaseProjectRef: process.env.SUPABASE_PROJECT_REF ?? "",
+  supabaseAccessToken: process.env.SUPABASE_ACCESS_TOKEN ?? "",
   anthropicApiKey: requireEnv("ANTHROPIC_API_KEY"),
   anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514",
 };

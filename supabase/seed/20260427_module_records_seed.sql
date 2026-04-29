@@ -13,35 +13,26 @@ declare
     'access-control-settings',
     'role-management',
     'user-access-review',
-    'emergency-access-log',
-    'encryption-inventory',
     'audit-log-viewer',
     'anomaly-alerts',
     'network-transmission-security',
     'risk-assessment',
-    'findings-remediation',
     'policy-library',
-    'controls-checklist',
     'baa-tracker',
     'vendor-risk-scores',
     'subcontractor-register',
     'training-tracker',
     'training-course-library',
-    'policy-acknowledgements',
-    'sanctions-log',
-    'incident-intake',
     'active-incidents',
     'breach-notification-center',
     'incident-history',
     'report-generator',
-    'scheduled-reports',
     'audit-packages',
     'previous-reports-archive',
     'organization-profile',
     'integrations',
     'notification-preferences',
-    'user-management',
-    'billing-plan'
+    'user-management'
   ];
   module_key text;
 begin
@@ -78,7 +69,7 @@ begin
       'Mock persisted record for CRUD testing on ' || module_key,
       'PENDING',
       case
-        when module_key in ('anomaly-alerts', 'findings-remediation', 'breach-notification-center') then 'HIGH'::hs_severity
+        when module_key in ('anomaly-alerts', 'breach-notification-center') then 'HIGH'::hs_severity
         when module_key in ('phi-leakage-scanner', 'active-incidents') then 'CRITICAL'::hs_severity
         else 'MEDIUM'::hs_severity
       end,
@@ -90,7 +81,6 @@ begin
         case
           when module_key = 'phi-leakage-scanner' then 3
           when module_key = 'user-access-review' then 12
-          when module_key = 'findings-remediation' then 8
           when module_key = 'baa-tracker' then 2
           when module_key = 'training-tracker' then 5
           else 0
